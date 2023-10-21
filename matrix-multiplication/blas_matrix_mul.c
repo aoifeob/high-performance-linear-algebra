@@ -36,7 +36,8 @@ int main(void) {
 
     int matrixDimensions[] = {100, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500};
 
-    for (int matrixDimension=0; matrixDimension < sizeof matrixDimensions / sizeof matrixDimensions[0]; matrixDimension++) {
+    for (int i=0; i < sizeof matrixDimensions / sizeof matrixDimensions[0]; i++) {
+        int matrixDimension = matrixDimensions[i];
         printf("Beginning operations using an %dx%d matrix.\n\n", matrixDimension, matrixDimension);
 
         unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
