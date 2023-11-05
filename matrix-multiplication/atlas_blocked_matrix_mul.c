@@ -23,69 +23,66 @@ int main(void) {
 
     int resultMatrixIndex = 0;
     int matrixDimension = 8;
-    int blockWidth = 1;
-    int iterations = 10;
-    double executionTimes[iterations];
+    int blockSize = 1;
 
     unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
 
-    for (int j=0; j<iterations; j++) {
-        leftMatrix = malloc(matrixMemorySize);
-        rightMatrix = malloc(matrixMemorySize);
-        resultMatrix = malloc(matrixMemorySize);
+    leftMatrix = malloc(matrixMemorySize);
+    rightMatrix = malloc(matrixMemorySize);
+    resultMatrix = malloc(matrixMemorySize);
 
-        initMatrix(matrixDimension, leftMatrix);
-        initMatrix(matrixDimension, rightMatrix);
+    initMatrix(matrixDimension, leftMatrix);
+    initMatrix(matrixDimension, rightMatrix);
 
-        if (!leftMatrix || !rightMatrix || !resultMatrix) {
-            printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
-            exit(-1);
+    if (!leftMatrix || !rightMatrix || !resultMatrix) {
+        printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
+        exit(-1);
+    }
+
+    //loop iterating through each block of the right matrix
+    for (int current_block_num_of_right_matrix = 0;
+         current_block_num_of_right_matrix < matrixDimension / blockSize;
+         current_block_num_of_right_matrix++) {
+
+        //create var to hold a block of the right matrix
+        double *block_of_right_matrix;
+        block_of_right_matrix = malloc(matrixDimension * sizeof(double));
+
+        //build the block of the right matrix
+        for (int current_col_in_right_matrix = 0;
+             current_col_in_right_matrix < matrixDimension / blockSize;
+             current_col_in_right_matrix++) {
+            block_of_right_matrix[current_col_in_right_matrix] = rightMatrix[current_block_num_of_right_matrix +
+                                                                             current_col_in_right_matrix *
+                                                                             matrixDimension];
         }
 
-        //loop iterating through each block of the right matrix
-        for (int current_block_num_of_right_matrix = 0;
-             current_block_num_of_right_matrix < matrixDimension / blockWidth;
-             current_block_num_of_right_matrix++) {
+        //loop iterating through each block of the left matrix
+        for (int current_block_num_of_left_matrix = 0;
+             current_block_num_of_left_matrix < matrixDimension / blockSize;
+             current_block_num_of_left_matrix++) {
 
-            //create var to hold a block of the right matrix
-            double *block_of_right_matrix;
-            block_of_right_matrix = malloc(matrixDimension * sizeof(double));
+            //create var to hold a block of the left matrix
+            double *block_of_left_matrix;
+            block_of_left_matrix = malloc(matrixDimension * sizeof(double));
 
-            //build the block of the right matrix
-            for (int current_col_in_right_matrix = 0;
-                 current_col_in_right_matrix < matrixDimension / blockWidth;
-                 current_col_in_right_matrix++) {
-                block_of_right_matrix[current_col_in_right_matrix] = rightMatrix[current_block_num_of_right_matrix +
-                                                                                 current_col_in_right_matrix *
-                                                                                 matrixDimension];
+            //build the block of the left matrix
+            for (int current_row_in_left_matrix = 0;
+                 current_row_in_left_matrix < matrixDimension / blockSize;
+                 current_row_in_left_matrix++) {
+
+                block_of_left_matrix[current_row_in_left_matrix] = leftMatrix[current_row_in_left_matrix +
+                                                                              current_block_num_of_left_matrix *
+                                                                              matrixDimension];
+
             }
 
-            //loop iterating through each block of the left matrix
-            for (int current_block_num_of_left_matrix = 0;
-                 current_block_num_of_left_matrix < matrixDimension / blockWidth;
-                 current_block_num_of_left_matrix++) {
-
-                //create var to hold a block of the left matrix
-                double *block_of_left_matrix;
-                block_of_left_matrix = malloc(matrixDimension * sizeof(double));
-
-                //build the block of the left matrix
-                for (int current_row_in_left_matrix = 0;
-                     current_row_in_left_matrix < matrixDimension / blockWidth;
-                     current_row_in_left_matrix++) {
-
-                    block_of_left_matrix[current_row_in_left_matrix] = leftMatrix[current_row_in_left_matrix +
-                                                                                  current_block_num_of_left_matrix *
-                                                                                  matrixDimension];
-
-                }
-
-                gettimeofday(&tv1, &tz);
+            gettimeofday(&tv1, &tz);
 
                 ATL_dgemm(CblasNoTrans,
                           CblasNoTrans,
-                          blockWidth, //rows in A, C
-                          blockWidth, //cols in B, C
+                          1, //rows in A, C
+                          1, //cols in B, C
                           matrixDimension, //cols in A, rows in B
                           1.0,
                           block_of_left_matrix,
@@ -96,33 +93,25 @@ int main(void) {
                           &resultMatrix[resultMatrixIndex],
                           1); //stride of C
 
-                gettimeofday(&tv2, &tz);
-                double timeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
-                blockMultiplicationTimeElapsed += timeElapsed;
+            gettimeofday(&tv2, &tz);
+            double timeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
+            blockMultiplicationTimeElapsed += timeElapsed;
 
-                //increment var tracking the index of the result matrix to be calculated
-                resultMatrixIndex++;
+            //increment var tracking the index of the result matrix to be calculated
+            resultMatrixIndex++;
 
-                free(block_of_left_matrix);
-            }
-
-            free(block_of_right_matrix);
+            free(block_of_left_matrix);
         }
 
-        executionTimes[j] = blockMultiplicationTimeElapsed;
-
-        free(leftMatrix);
-        free(rightMatrix);
-        free(resultMatrix);
+        free(block_of_right_matrix);
     }
 
-    double avgExecutionTime = 0;
-    for (int j = 0; j < iterations; j++) {
-        avgExecutionTime += executionTimes[j];
-    }
-    avgExecutionTime = avgExecutionTime / iterations;
-    printf("Average time taken for simple matrix multiplication on array with %dx%d dimensions: %f.\n\n",
-           matrixDimension, matrixDimension, avgExecutionTime);
+    free(leftMatrix);
+    free(rightMatrix);
+    free(resultMatrix);
+
+    printf("Time taken for simple matrix multiplication on array with %dx%d dimensions: %f.\n\n",
+           matrixDimension, matrixDimension, blockMultiplicationTimeElapsed);
 
     return 0;
 }
