@@ -21,9 +21,14 @@ int main(void) {
     struct timezone tz;
     double blockMultiplicationTimeElapsed = 0;
 
-    int resultMatrixIndex = 0;
-    int matrixDimension = 8;
-    int blockSize = 1;
+    int matrixDimension = 1024; //default value, can be overwritten by user input
+    int blockSize = 1; //default value, can be overwritten by user input
+
+    printf("Enter matrix dimension n : \n\n");
+    scanf("%d", &matrixDimension);
+
+    printf("Enter matrix block width b : \n\n");
+    scanf("%d", &blockSize);
 
     unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
 
@@ -39,6 +44,7 @@ int main(void) {
         exit(-1);
     }
 
+    int resultMatrixIndex = 0;
     //loop iterating through each block of the right matrix
     for (int current_block_num_of_right_matrix = 0;
          current_block_num_of_right_matrix < matrixDimension / blockSize;
@@ -79,19 +85,19 @@ int main(void) {
 
             gettimeofday(&tv1, &tz);
 
-                ATL_dgemm(CblasNoTrans,
-                          CblasNoTrans,
-                          1, //rows in A, C
-                          1, //cols in B, C
-                          matrixDimension, //cols in A, rows in B
-                          1.0,
-                          block_of_left_matrix,
-                          1, //stride of A
-                          block_of_right_matrix,
-                          1, //stride of B
-                          1.0,
-                          &resultMatrix[resultMatrixIndex],
-                          1); //stride of C
+            ATL_dgemm(CblasNoTrans,
+                      CblasNoTrans,
+                      1, //rows in A, C
+                      1, //cols in B, C
+                      matrixDimension, //cols in A, rows in B
+                      1.0,
+                      block_of_left_matrix,
+                      1, //stride of A
+                      block_of_right_matrix,
+                      1, //stride of B
+                      1.0,
+                      &resultMatrix[resultMatrixIndex],
+                      1); //stride of C
 
             gettimeofday(&tv2, &tz);
             double timeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
