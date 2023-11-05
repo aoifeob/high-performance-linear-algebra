@@ -47,8 +47,8 @@ int main(void) {
     int resultMatrixIndex = 0;
     //loop iterating through each block of the right matrix
     for (int current_block_num_of_right_matrix = 0;
-         current_block_num_of_right_matrix < matrixDimension / blockSize;
-         current_block_num_of_right_matrix += blockSize) {
+         current_block_num_of_right_matrix < matrixDimension;
+         current_block_num_of_right_matrix ++) {
 
         //create var to hold a block of the right matrix to be stored in cache
         double *cached_block_of_right_matrix;
@@ -56,8 +56,8 @@ int main(void) {
 
         //build the block of the right matrix to be stored in cache
         for (int current_col_in_right_matrix = 0;
-             current_col_in_right_matrix < matrixDimension / blockSize;
-             current_col_in_right_matrix += blockSize) {
+             current_col_in_right_matrix < matrixDimension;
+             current_col_in_right_matrix ++) {
             cached_block_of_right_matrix[current_col_in_right_matrix] = rightMatrix[current_block_num_of_right_matrix +
                                                                                     current_col_in_right_matrix *
                                                                                     matrixDimension];
@@ -65,8 +65,8 @@ int main(void) {
 
         //loop iterating through each block of the left matrix
         for (int current_block_num_of_left_matrix = 0;
-             current_block_num_of_left_matrix < matrixDimension / blockSize;
-             current_block_num_of_left_matrix += blockSize) {
+             current_block_num_of_left_matrix < matrixDimension;
+             current_block_num_of_left_matrix ++) {
 
             //create var to hold a block of the left matrix to be stored in cache
             double *cached_block_of_left_matrix;
@@ -74,8 +74,8 @@ int main(void) {
 
             //build the block of the left matrix to be stored in cache
             for (int current_row_in_left_matrix = 0;
-                 current_row_in_left_matrix < matrixDimension / blockSize;
-                 current_row_in_left_matrix += blockSize) {
+                 current_row_in_left_matrix < matrixDimension;
+                 current_row_in_left_matrix ++) {
 
                 cached_block_of_left_matrix[current_row_in_left_matrix] = leftMatrix[current_row_in_left_matrix +
                                                                                      current_block_num_of_left_matrix *
@@ -83,52 +83,6 @@ int main(void) {
 
             }
 
-            //if the cached block contains more than one row/col, isolate the row and col to be used for this multiplication
-            if (blockSize > 1) {
-                double *block_of_left_matrix_to_multiply;
-                double *block_of_right_matrix_to_multiply;
-                block_of_left_matrix_to_multiply = malloc(matrixDimension * sizeof(double));
-                block_of_right_matrix_to_multiply = malloc(matrixDimension * sizeof(double));
-
-                //build the block of the left matrix to use for multiplication
-                for (int current_row_in_left_block = 0;
-                     current_row_in_left_block < matrixDimension;
-                     current_row_in_left_block++) {
-                    block_of_left_matrix_to_multiply[current_row_in_left_block] = cached_block_of_left_matrix[
-                            current_block_num_of_left_matrix * matrixDimension +
-                            current_row_in_left_block];
-                }
-
-                //build the block of the right matrix to use for multiplication
-                for (int current_col_in_right_block = 0;
-                     current_col_in_right_block < matrixDimension;
-                     current_col_in_right_block++) {
-                    block_of_right_matrix_to_multiply[current_col_in_right_block] = cached_block_of_right_matrix[
-                            current_block_num_of_right_matrix +
-                            current_col_in_right_block * matrixDimension];
-                }
-
-                gettimeofday(&tv1, &tz);
-
-                ATL_dgemm(CblasNoTrans,
-                          CblasNoTrans,
-                          1, //rows in A, C
-                          1, //cols in B, C
-                          matrixDimension, //cols in A, rows in B
-                          1.0,
-                          block_of_left_matrix_to_multiply,
-                          1, //stride of A
-                          block_of_right_matrix_to_multiply,
-                          1, //stride of B
-                          1.0,
-                          &resultMatrix[resultMatrixIndex],
-                          1); //stride of C
-
-                gettimeofday(&tv2, &tz);
-
-                free(block_of_left_matrix_to_multiply);
-                free(block_of_right_matrix_to_multiply);
-            } else {
                 gettimeofday(&tv1, &tz);
 
                 ATL_dgemm(CblasNoTrans,
@@ -146,7 +100,6 @@ int main(void) {
                           1); //stride of C
 
                 gettimeofday(&tv2, &tz);
-            }
 
             double timeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
             blockMultiplicationTimeElapsed += timeElapsed;
