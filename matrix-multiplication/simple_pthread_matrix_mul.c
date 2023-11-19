@@ -49,10 +49,11 @@ void *pThreadMultiplySlice(void *arg) {
             //calculate value for a single element of the result matrix by multiplying the single row and single column
             double element = 0;
             for (int k = 0; k < matrixDimension; k++) {
-                element += leftMatrixSingleRowSlice[k * mul_slice_data->sliceWidth] *
-                           mul_slice_data->rightMatrixSlice[k + mul_slice_data->sliceWidth * rightMatrixCol];
+                element += leftMatrixSingleRowSlice[k] *
+                           mul_slice_data->rightMatrixSlice[k + mul_slice_data->matrixDimension * rightMatrixCol];
             }
-            mul_slice_data->resultMatrix[resultMatrixIndex + mul_slice_data->matrixDimension * mul_slice_data->threadNumber] = element;
+            printf("Setting value %f at index %d of result matrix\n\n", element, resultMatrixIndex + mul_slice_data->matrixDimension * mul_slice_data->threadNumber);
+            mul_slice_data->resultMatrix[resultMatrixIndex + mul_slice_data->matrixDimension * mul_slice_data->sliceWidth * mul_slice_data->threadNumber] = element;
 
             free(leftMatrixSingleRowSlice);
 
@@ -69,28 +70,22 @@ void pThreadMultiply(int numThreads, int matrixDimension, double *leftMatrix, co
     void *thread_status;
     mul_slice_data *thread_mul_slice_data;
     int sliceWidth = matrixDimension / numThreads;
-    double rightMatrixSlice[2][2] = {{5, 6},
-                                     {7, 8}};
+    int elementsInSlice = matrixDimension * sliceWidth;
+    double rightMatrixSlice[numThreads][elementsInSlice];
     double *resultMatrixSlice;
 
     resultMatrixSlice = malloc(matrixDimension * sizeof(double));
     working_thread = malloc(numThreads * sizeof(pthread_t));
     thread_mul_slice_data = malloc(numThreads * sizeof(mul_slice_data));
 
-    //create a vertical slice of rightMatrix per thread
-    //TODO: support slice width > 1
-//    for (int thread = 0; thread < numThreads; thread++) {
-//        for (int col = 0; col < matrixDimension; col++) {
-//            for (int row = 0; row < matrixDimension; row++) {
-//                int index = col * thread + row;
-//                printf("Right matrix slice for thread %d has value %f at index %d\n\n", thread, rightMatrix[col * thread + row], col * thread + row);
-//                rightMatrixSlice[thread][col * thread + row] = rightMatrix[col * thread + row];
-//            }
-//        }
-//    }
-
     //create threads
     for (int thread = 0; thread < numThreads; thread++) {
+        //create a vertical slice of rightMatrix per thread
+        int rightMatrixIndex = 0;
+        for (int col = 0; col < elementsInSlice; col++) {
+                rightMatrixSlice[thread][rightMatrixIndex] = rightMatrix[col + elementsInSlice * thread];
+                rightMatrixIndex++;
+        }
 
         //construct slice data
         thread_mul_slice_data[thread].leftMatrix = leftMatrix;
@@ -103,7 +98,6 @@ void pThreadMultiply(int numThreads, int matrixDimension, double *leftMatrix, co
         //create thread to calculate slice
         pthread_create(&working_thread[thread], NULL, pThreadMultiplySlice,
                        (void *) &thread_mul_slice_data[thread]);
-
     }
 
     //join threads
@@ -137,13 +131,13 @@ void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulRes
 }
 
 int main(void) {
-    double leftMatrix[4] = {1, 2, 3, 4};
-    double rightMatrix[4] = {5, 6, 7, 8};
+    double leftMatrix[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    double rightMatrix[16] = {5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
     double *serialMulResultMatrix;
     double *pthreadMulResultMatrix;
     struct timeval tv1, tv2;
     struct timezone tz;
-    int matrixDimension = 2;
+    int matrixDimension = 4;
     int numThreads = 2;
 
     unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
