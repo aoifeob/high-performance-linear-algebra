@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <math.h>
 #include <pthread.h>
+#include <cblas.h>
 
 #define MAX_THREADS 124
 
@@ -33,7 +34,8 @@ void initMatrix(int matrixDimension, double matrix[]) {
     }
 }
 
-void serialMultiply(int matrixDimension, const double *leftMatrix, const double *rightMatrix, double *serialMulResultMatrix) {
+void serialMultiply(int matrixDimension, const double *leftMatrix, const double *rightMatrix,
+                    double *serialMulResultMatrix) {
     for (int col = 0; col < matrixDimension; col++) {
         for (int row = 0; row < matrixDimension; row++) {
             for (int k = 0; k < matrixDimension; k++) {
@@ -44,15 +46,15 @@ void serialMultiply(int matrixDimension, const double *leftMatrix, const double 
     }
 }
 
-double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix){
+double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix) {
     double oneNorm = 0;
-    for (int col=0; col < matrixDimension ; col++){
+    for (int col = 0; col < matrixDimension; col++) {
         double thisColNorm = 0;
-        for (int row=0; row < matrixDimension ; row++){
+        for (int row = 0; row < matrixDimension; row++) {
             double absoluteElementValue = fabs(serialMulResultMatrix[col * matrixDimension + row]);
             thisColNorm += absoluteElementValue;
         }
-        if (thisColNorm > oneNorm){
+        if (thisColNorm > oneNorm) {
             oneNorm = thisColNorm;
         }
     }
@@ -60,8 +62,36 @@ double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix){
 }
 
 void *pThreadMultiplySlice(void *arg) {
-
     //TODO: implement slice multiplication logic
+    mul_slice_data *mul_slice_data = arg;
+    int matrixDimension = mul_slice_data -> matrixDimension;
+
+    int resultMatrixIndex = 0;
+
+    for (int col = 0; col < mul_slice_data -> sliceWidth; col++) {
+        //TODO: create slice of right matrix containing a single column
+
+        for (int row = 0; row < matrixDimension; row++) {
+            //TODO: create slice of left matrix containing a single row
+
+            cblas_dgemm(CblasColMajor,
+                        CblasNoTrans,
+                        CblasNoTrans,
+                        matrixDimension, //rows in A, C
+                        mul_slice_data -> sliceWidth, //cols in B, C
+                        matrixDimension, //cols in A, rows in B
+                        1.0,
+                        firstMatrix,
+                        matrixDimension, //stride of A
+                        secondMatrix,
+                        matrixDimension, //stride of B
+                        1.0,
+                        &(mul_slice_data -> resultMatrixSlice)[resultMatrixIndex],
+                        matrixDimension); //stride of C
+
+            resultMatrixIndex++;
+        }
+    }
 
     pthread_exit(NULL);
 }
@@ -113,24 +143,37 @@ void pThreadMultiply(int numThreads, int matrixDimension, double *leftMatrix, co
 }
 
 
-void *pThreadCalculateSliceNorm(void *arg){
-    //TODO: implement norm calculation logic with mutex
-    oneNorm = 0;
-    for (int col=0; col < matrixDimension ; col++){
+void *pThreadCalculateSliceNorm(void *arg) {
+    norm_slice_data *norm_slice_data = arg;
+    *(norm_slice_data->oneNorm) = 0;
+
+    //iterate through columns of the slice
+    for (int col = 0; col < norm_slice_data->sliceWidth; col++) {
         double thisColNorm = 0;
-        for (int row=0; row < matrixDimension ; row++){
-            double absoluteElementValue = fabs(resultMatrixSlice[col + matrixDimension + row]);
+
+        //iterate through rows of the column to sum absolute values
+        for (int row = 0; row < norm_slice_data->matrixDimension; row++) {
+            double absoluteElementValue = fabs(
+                    norm_slice_data->resultMatrixSlice[col * norm_slice_data->sliceWidth + row]);
             thisColNorm += absoluteElementValue;
         }
-        if (thisColNorm > oneNorm){
-            oneNorm = thisColNorm;
+
+        //lock mutex before reading
+        pthread_mutex_lock(norm_slice_data->mutex);
+
+        //if norm of the current column is greater than the current max column norm, update it to the current value
+        if (thisColNorm > *(norm_slice_data->oneNorm)) {
+            *(norm_slice_data->oneNorm) = thisColNorm;
         }
+
+        //unlock mutex after read/write
+        pthread_mutex_unlock(norm_slice_data->mutex);
     }
 
     pthread_exit(NULL);
 }
 
-void calculatePthreadNorm(int numThreads, int matrixDimension, const double *pthreadMulResultMatrix, double *oneNorm){
+void calculatePthreadNorm(int numThreads, int matrixDimension, const double *pthreadMulResultMatrix, double *oneNorm) {
     //TODO: implement with pthreads
     pthread_t *working_thread;
     pthread_mutex_t *mutex_one_norm;
@@ -180,16 +223,17 @@ void calculatePthreadNorm(int numThreads, int matrixDimension, const double *pth
 }
 
 
-void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulResultMatrix, const double *pthreadResultMatrix) {
+void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulResultMatrix,
+                                 const double *pthreadResultMatrix) {
     bool matrixValuesAreEqual = true;
     for (int col = 0; col < matrixDimension; col++) {
         for (int row = 0; row < matrixDimension; row++) {
-            double serialMulEntry = serialMulResultMatrix[col * matrixDimension + row];
-            double pthreadMulEntry = pthreadResultMatrix[col * matrixDimension + row];
-            if (serialMulEntry != pthreadMulEntry) {
+            double serialMulElement = serialMulResultMatrix[col * matrixDimension + row];
+            double pthreadMulElement = pthreadResultMatrix[col * matrixDimension + row];
+            if (serialMulElement != pthreadMulElement) {
                 // print all non-matching values before exiting
-                printf("Matrix values at column %d, row %d are different. \n Serial mul matrix value: %f \n Pthread mul matrix value: %f \n\n",
-                       col, row, serialMulEntry, pthreadMulEntry);
+                printf("Matrix elements at column %d, row %d are different. \n Serial mul matrix value: %f \n Pthread mul matrix value: %f \n\n",
+                       col, row, serialMulElement, pthreadMulElement);
                 matrixValuesAreEqual = false;
             }
         }
@@ -199,8 +243,8 @@ void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulRes
     }
 }
 
-void assertNormsAreEquivalent(double serialNorm, double pThreadNorm){
-    if (serialNorm != pThreadNorm){
+void assertNormsAreEquivalent(double serialNorm, double pThreadNorm) {
+    if (serialNorm != pThreadNorm) {
         printf("Matrix norms are different. Serial norm: %f \n Pthread norm: %f \n\n", serialNorm, pThreadNorm);
         exit(-1);
     }

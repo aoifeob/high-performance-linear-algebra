@@ -3,15 +3,6 @@
 #include <sys/time.h>
 #include <math.h>
 
-void initMatrix(int matrixDimension, double matrix[]) {
-    for (int col = 0; col < matrixDimension; col++) {
-        for (int row = 0; row < matrixDimension; row++) {
-            double value = rand();
-            matrix[col * matrixDimension + row] = value;
-        }
-    }
-}
-
 void serialMultiply(int matrixDimension, const double *leftMatrix, const double *rightMatrix, double *serialMulResultMatrix) {
     for (int col = 0; col < matrixDimension; col++) {
         for (int row = 0; row < matrixDimension; row++) {
@@ -39,8 +30,8 @@ double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix){
 }
 
 int main(void) {
-    double leftMatrix[] = {1, 2, 3, 4};
-    double rightMatrix[] = {5, 6, 7, 8};
+    double leftMatrix[4] = {1, 2, 3, 4};
+    double rightMatrix[4] = {5, 6, 7, 8};
     double *serialMulResultMatrix;
     double serialNorm;
     struct timeval tv1, tv2;
