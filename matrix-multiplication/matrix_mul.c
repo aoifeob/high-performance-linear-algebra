@@ -174,7 +174,6 @@ void *pThreadCalculateSliceNorm(void *arg) {
 }
 
 void calculatePthreadNorm(int numThreads, int matrixDimension, const double *pthreadMulResultMatrix, double *oneNorm) {
-    //TODO: implement with pthreads
     pthread_t *working_thread;
     pthread_mutex_t *mutex_one_norm;
     void *thread_status;

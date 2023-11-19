@@ -6,10 +6,12 @@
 void serialMultiply(int matrixDimension, const double *leftMatrix, const double *rightMatrix, double *serialMulResultMatrix) {
     for (int col = 0; col < matrixDimension; col++) {
         for (int row = 0; row < matrixDimension; row++) {
+            double element = 0;
             for (int k = 0; k < matrixDimension; k++) {
-                serialMulResultMatrix[row * matrixDimension + col] +=
-                        leftMatrix[col + k * matrixDimension] * rightMatrix[k + matrixDimension * row];
+                printf("Adding product of row %d and column %d to element value\n", row + k * matrixDimension, k + matrixDimension * col);
+                element += leftMatrix[row + k * matrixDimension] * rightMatrix[k + matrixDimension * col];
             }
+            serialMulResultMatrix[col * matrixDimension + row] = element;
         }
     }
 }
