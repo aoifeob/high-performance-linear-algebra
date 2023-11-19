@@ -4,7 +4,6 @@
 #include <sys/time.h>
 #include <math.h>
 #include <pthread.h>
-//#include <cblas.h>
 
 #define MAX_THREADS 124
 
