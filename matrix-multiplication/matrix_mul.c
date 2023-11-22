@@ -280,7 +280,7 @@ int main(void) {
         serialMulResultMatrix = malloc(matrixMemorySize);
         pthreadMulResultMatrix = malloc(matrixMemorySize);
 
-        if (!serialMulResultMatrix || !pthreadMulResultMatrix) {
+        if (!leftMatrix || !rightMatrix || !serialMulResultMatrix || !pthreadMulResultMatrix) {
             printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
             exit(-1);
         }
@@ -309,6 +309,8 @@ int main(void) {
         assertMatricesAreEquivalent(matrixDimension, serialMulResultMatrix, pthreadMulResultMatrix);
         assertNormsAreEquivalent(serialNorm, pThreadNorm);
 
+        free(leftMatrix);
+        free(rightMatrix);
         free(serialMulResultMatrix);
         free(pthreadMulResultMatrix);
     }
