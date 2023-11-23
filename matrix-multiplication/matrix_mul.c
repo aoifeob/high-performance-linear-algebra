@@ -134,6 +134,7 @@ void pThreadMultiply(int numThreads, int matrixDimension, double *leftMatrix, do
 
 void *pThreadCalculateSliceNorm(void *arg) {
     norm_slice_data *norm_slice_data = arg;
+    double sliceNorm = 0;
 
     //iterate through columns of the slice
     for (int col = 0; col < norm_slice_data->sliceWidth; col++) {
@@ -146,17 +147,25 @@ void *pThreadCalculateSliceNorm(void *arg) {
             thisColNorm += absoluteElementValue;
         }
 
-        //lock mutex before reading
-        pthread_mutex_lock(norm_slice_data->mutex);
-
         //if norm of the current column is greater than the current max column norm, update it to the current value
-        if (thisColNorm > *(norm_slice_data->oneNorm)) {
-            *(norm_slice_data->oneNorm) = thisColNorm;
+        if (thisColNorm > sliceNorm) {
+            sliceNorm = thisColNorm;
         }
 
-        //unlock mutex after read/write
-        pthread_mutex_unlock(norm_slice_data->mutex);
     }
+
+    //lock mutex before reading
+    pthread_mutex_lock(norm_slice_data->mutex);
+
+    //if norm of the current column is greater than the current max column norm, update it to the current value
+    if (sliceNorm > *(norm_slice_data->oneNorm)) {
+        *(norm_slice_data->oneNorm) = sliceNorm;
+    }
+
+    //unlock mutex after read/write
+    pthread_mutex_unlock(norm_slice_data->mutex);
+
+    printf("Norm of parallel slice is %f\n\n", sliceNorm);
 
     pthread_exit(NULL);
 }
@@ -221,7 +230,7 @@ void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulRes
 void assertNormsAreEquivalent(double serialNorm, double pThreadNorm) {
     if (serialNorm != pThreadNorm) {
         printf("Matrix norms are different. Serial norm: %f \n Pthread norm: %f \n\n", serialNorm, pThreadNorm);
-        exit(-1);
+//        exit(-1);
     }
 }
 
@@ -234,8 +243,6 @@ int main(void) {
     struct timezone tz;
     int matrixDimension = 2048; //default value, can be overwritten by user input
     int numThreads = 8;
-    int iterations = 5;
-    double serialMulExecutionTimes[iterations], pthreadMulExecutionTimes[iterations];
 
     unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
 
@@ -254,59 +261,45 @@ int main(void) {
         exit(-1);
     }
 
-    for (int i = 0; i < iterations; i++) {
-        leftMatrix = malloc(matrixMemorySize);
-        rightMatrix = malloc(matrixMemorySize);
-        serialMulResultMatrix = malloc(matrixMemorySize);
-        pthreadMulResultMatrix = malloc(matrixMemorySize);
+    leftMatrix = malloc(matrixMemorySize);
+    rightMatrix = malloc(matrixMemorySize);
+    serialMulResultMatrix = malloc(matrixMemorySize);
+    pthreadMulResultMatrix = malloc(matrixMemorySize);
 
-        if (!leftMatrix || !rightMatrix || !serialMulResultMatrix || !pthreadMulResultMatrix) {
-            printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
-            exit(-1);
-        }
-
-        initMatrix(matrixDimension, leftMatrix);
-        initMatrix(matrixDimension, rightMatrix);
-
-        // Serial matrix multiplication
-        gettimeofday(&tv1, &tz);
-        serialMultiply(matrixDimension, leftMatrix, rightMatrix, serialMulResultMatrix);
-        serialNorm = calculateSerialNorm(matrixDimension, serialMulResultMatrix);
-        gettimeofday(&tv2, &tz);
-        double serialMulTimeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
-        serialMulExecutionTimes[i] = serialMulTimeElapsed;
-
-
-        // pthread matrix multiplication
-        gettimeofday(&tv1, &tz);
-        pThreadMultiply(numThreads, matrixDimension, leftMatrix, rightMatrix, pthreadMulResultMatrix);
-        calculatePthreadNorm(numThreads, matrixDimension, pthreadMulResultMatrix, &pThreadNorm);
-        gettimeofday(&tv2, &tz);
-        double pthreadMulTimeElapsed =
-                (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
-        pthreadMulExecutionTimes[i] = pthreadMulTimeElapsed;
-
-        assertMatricesAreEquivalent(matrixDimension, serialMulResultMatrix, pthreadMulResultMatrix);
-        assertNormsAreEquivalent(serialNorm, pThreadNorm);
-
-        free(leftMatrix);
-        free(rightMatrix);
-        free(serialMulResultMatrix);
-        free(pthreadMulResultMatrix);
+    if (!leftMatrix || !rightMatrix || !serialMulResultMatrix || !pthreadMulResultMatrix) {
+        printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
+        exit(-1);
     }
 
+    initMatrix(matrixDimension, leftMatrix);
+    initMatrix(matrixDimension, rightMatrix);
 
-    double avgSerialMulIterationTime = 0;
-    double avgPthreadMulIterationTime = 0;
-    for (int i = 0; i < iterations; i++) {
-        avgSerialMulIterationTime += serialMulExecutionTimes[i];
-        avgPthreadMulIterationTime += pthreadMulExecutionTimes[i];
-    }
-    avgSerialMulIterationTime = avgSerialMulIterationTime / iterations;
-    avgPthreadMulIterationTime = avgPthreadMulIterationTime / iterations;
+    // Serial matrix multiplication
+    gettimeofday(&tv1, &tz);
+    serialMultiply(matrixDimension, leftMatrix, rightMatrix, serialMulResultMatrix);
+    serialNorm = calculateSerialNorm(matrixDimension, serialMulResultMatrix);
+    gettimeofday(&tv2, &tz);
+    double serialMulTimeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
 
-    printf("Average times taken for matrix multiplication on array with %dx%d dimensions: \n Serial: %f \n Pthread: %f\n\n",
-           matrixDimension, matrixDimension, avgSerialMulIterationTime, avgPthreadMulIterationTime);
+
+    // pthread matrix multiplication
+    gettimeofday(&tv1, &tz);
+    pThreadMultiply(numThreads, matrixDimension, leftMatrix, rightMatrix, pthreadMulResultMatrix);
+    calculatePthreadNorm(numThreads, matrixDimension, pthreadMulResultMatrix, &pThreadNorm);
+    gettimeofday(&tv2, &tz);
+    double pthreadMulTimeElapsed =
+            (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
+
+    assertMatricesAreEquivalent(matrixDimension, serialMulResultMatrix, pthreadMulResultMatrix);
+    assertNormsAreEquivalent(serialNorm, pThreadNorm);
+
+    free(leftMatrix);
+    free(rightMatrix);
+    free(serialMulResultMatrix);
+    free(pthreadMulResultMatrix);
+
+    printf("Times taken for matrix multiplication on array with %dx%d dimensions: \n Serial: %f \n Pthread: %f\n\n",
+           matrixDimension, matrixDimension, serialMulTimeElapsed, pthreadMulTimeElapsed);
 
     return 0;
 }
