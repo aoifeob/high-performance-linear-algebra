@@ -165,8 +165,6 @@ void *pThreadCalculateSliceNorm(void *arg) {
     //unlock mutex after read/write
     pthread_mutex_unlock(norm_slice_data->mutex);
 
-    printf("Norm of parallel slice is %f\n\n", sliceNorm);
-
     pthread_exit(NULL);
 }
 
