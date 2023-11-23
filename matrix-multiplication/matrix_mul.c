@@ -97,32 +97,22 @@ void *pThreadMultiplySlice(void *arg) {
     pthread_exit(NULL);
 }
 
-void pThreadMultiply(int numThreads, int matrixDimension, double *leftMatrix, const double *rightMatrix,
+void pThreadMultiply(int numThreads, int matrixDimension, double *leftMatrix, double *rightMatrix,
                      double *pthreadResultMatrix) {
     pthread_t *working_thread;
     void *thread_status;
     mul_slice_data *thread_mul_slice_data;
     int sliceWidth = matrixDimension / numThreads;
     int elementsInSlice = matrixDimension * sliceWidth;
-    double rightMatrixSlice[numThreads][elementsInSlice];
-    double *resultMatrixSlice;
 
-    resultMatrixSlice = malloc(matrixDimension * sizeof(double));
     working_thread = malloc(numThreads * sizeof(pthread_t));
     thread_mul_slice_data = malloc(numThreads * sizeof(mul_slice_data));
 
     //create threads
     for (int thread = 0; thread < numThreads; thread++) {
-        //create a vertical slice of rightMatrix per thread
-        int rightMatrixIndex = 0;
-        for (int col = 0; col < elementsInSlice; col++) {
-            rightMatrixSlice[thread][rightMatrixIndex] = rightMatrix[col + elementsInSlice * thread];
-            rightMatrixIndex++;
-        }
-
         //construct slice data
         thread_mul_slice_data[thread].leftMatrix = leftMatrix;
-        thread_mul_slice_data[thread].rightMatrixSlice = rightMatrixSlice[thread];
+        thread_mul_slice_data[thread].rightMatrixSlice = rightMatrix + thread * elementsInSlice;
         thread_mul_slice_data[thread].resultMatrix = pthreadResultMatrix;
         thread_mul_slice_data[thread].matrixDimension = matrixDimension;
         thread_mul_slice_data[thread].sliceWidth = sliceWidth;
@@ -139,13 +129,11 @@ void pThreadMultiply(int numThreads, int matrixDimension, double *leftMatrix, co
     }
 
     free(working_thread);
-    free(resultMatrixSlice);
     free(thread_mul_slice_data);
 }
 
 void *pThreadCalculateSliceNorm(void *arg) {
     norm_slice_data *norm_slice_data = arg;
-    *(norm_slice_data->oneNorm) = 0;
 
     //iterate through columns of the slice
     for (int col = 0; col < norm_slice_data->sliceWidth; col++) {
@@ -173,14 +161,13 @@ void *pThreadCalculateSliceNorm(void *arg) {
     pthread_exit(NULL);
 }
 
-void calculatePthreadNorm(int numThreads, int matrixDimension, const double *pthreadMulResultMatrix, double *oneNorm) {
+void calculatePthreadNorm(int numThreads, int matrixDimension, double *pthreadMulResultMatrix, double *oneNorm) {
     pthread_t *working_thread;
     pthread_mutex_t *mutex_one_norm;
     void *thread_status;
     norm_slice_data *thread_norm_slice_data;
     int sliceWidth = matrixDimension / numThreads;
     int elementsInSlice = matrixDimension * sliceWidth;
-    double resultMatrixSlice[numThreads][elementsInSlice];
 
     working_thread = malloc(numThreads * sizeof(pthread_t));
     thread_norm_slice_data = malloc(numThreads * sizeof(mul_slice_data));
@@ -188,15 +175,8 @@ void calculatePthreadNorm(int numThreads, int matrixDimension, const double *pth
     pthread_mutex_init(mutex_one_norm, NULL);
 
     for (int thread = 0; thread < numThreads; thread++) {
-        //create a vertical slice of resultMatrix per thread
-        int resultMatrixIndex = 0;
-        for (int col = 0; col < elementsInSlice; col++) {
-            resultMatrixSlice[thread][resultMatrixIndex] = pthreadMulResultMatrix[col + elementsInSlice * thread];
-            resultMatrixIndex++;
-        }
-
         //construct slice data
-        thread_norm_slice_data[thread].resultMatrixSlice = resultMatrixSlice[thread];
+        thread_norm_slice_data[thread].resultMatrixSlice = pthreadMulResultMatrix + thread * elementsInSlice;
         thread_norm_slice_data[thread].oneNorm = oneNorm;
         thread_norm_slice_data[thread].matrixDimension = matrixDimension;
         thread_norm_slice_data[thread].sliceWidth = sliceWidth;
