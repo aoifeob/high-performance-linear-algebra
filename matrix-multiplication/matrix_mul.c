@@ -278,7 +278,6 @@ int main(void) {
     gettimeofday(&tv2, &tz);
     double serialMulTimeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
 
-
     // pthread matrix multiplication
     gettimeofday(&tv1, &tz);
     pThreadMultiply(numThreads, matrixDimension, leftMatrix, rightMatrix, pthreadMulResultMatrix);
@@ -290,13 +289,13 @@ int main(void) {
     assertMatricesAreEquivalent(matrixDimension, serialMulResultMatrix, pthreadMulResultMatrix);
     assertNormsAreEquivalent(serialNorm, pThreadNorm);
 
+    printf("Times taken for matrix multiplication on array with %dx%d dimensions: \n Serial: %f \n Pthread: %f\n\n",
+           matrixDimension, matrixDimension, serialMulTimeElapsed, pthreadMulTimeElapsed);
+
     free(leftMatrix);
     free(rightMatrix);
     free(serialMulResultMatrix);
     free(pthreadMulResultMatrix);
-
-    printf("Times taken for matrix multiplication on array with %dx%d dimensions: \n Serial: %f \n Pthread: %f\n\n",
-           matrixDimension, matrixDimension, serialMulTimeElapsed, pthreadMulTimeElapsed);
 
     return 0;
 }
