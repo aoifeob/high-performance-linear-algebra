@@ -236,8 +236,6 @@ int main(void) {
     int matrixDimension = 2048; //default value, can be overwritten by user input
     int numThreads = 8;
 
-    unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
-
     printf("Enter matrix dimension n : \n\n");
     scanf("%d", &matrixDimension);
 
@@ -258,10 +256,12 @@ int main(void) {
                matrixDimension, numThreads);
     }
 
-    leftMatrix = malloc(matrixMemorySize);
-    rightMatrix = malloc(matrixMemorySize);
-    serialMulResultMatrix = malloc(matrixMemorySize);
-    pthreadMulResultMatrix = malloc(matrixMemorySize);
+    unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
+
+    leftMatrix = (double *)malloc(matrixMemorySize);
+    rightMatrix = (double *)malloc(matrixMemorySize);
+    serialMulResultMatrix = (double *)malloc(matrixMemorySize);
+    pthreadMulResultMatrix = (double *)malloc(matrixMemorySize);
 
     if (!leftMatrix || !rightMatrix || !serialMulResultMatrix || !pthreadMulResultMatrix) {
         printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
