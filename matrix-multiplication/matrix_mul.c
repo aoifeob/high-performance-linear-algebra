@@ -13,6 +13,7 @@ typedef struct {
     double *resultMatrix;
     int matrixDimension;
     int sliceWidth;
+    int resultMatrixSliceStartingIndex;
     int threadNumber;
 } mul_slice_data;
 
@@ -23,6 +24,10 @@ typedef struct {
     int sliceWidth;
     pthread_mutex_t *mutex;
 } norm_slice_data;
+
+bool isLastThread(int threadNum, int totalThreads){
+    return threadNum == totalThreads -1;
+}
 
 void initMatrix(int matrixDimension, double matrix[]) {
     for (int col = 0; col < matrixDimension; col++) {
@@ -64,33 +69,21 @@ double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix) {
 
 void *pThreadMultiplySlice(void *arg) {
     mul_slice_data *mul_slice_data = arg;
-    int matrixDimension = mul_slice_data->matrixDimension;
 
-    int resultMatrixIndex = 0;
+    int currentResultIndex = 0;
 
     for (int rightMatrixCol = 0; rightMatrixCol < mul_slice_data->sliceWidth; rightMatrixCol++) {
-        for (int leftMatrixRow = 0; leftMatrixRow < matrixDimension; leftMatrixRow++) {
-            //create slice of left matrix containing a single row
-            double *leftMatrixSingleRowSlice;
-            leftMatrixSingleRowSlice = malloc(mul_slice_data->matrixDimension * sizeof(double));
-            for (int leftMatrixCol = 0; leftMatrixCol < matrixDimension; leftMatrixCol++) {
-                leftMatrixSingleRowSlice[leftMatrixCol] = mul_slice_data->leftMatrix[leftMatrixRow +
-                                                                                     leftMatrixCol * matrixDimension];
-            }
+        for (int leftMatrixRow = 0; leftMatrixRow < mul_slice_data->matrixDimension; leftMatrixRow++) {
 
             //calculate value for a single element of the result matrix by multiplying the single row and single column
             double element = 0;
-            for (int k = 0; k < matrixDimension; k++) {
-                element += leftMatrixSingleRowSlice[k] *
+            for (int k = 0; k < mul_slice_data->matrixDimension; k++) {
+                element += mul_slice_data->leftMatrix[leftMatrixRow + k * mul_slice_data->matrixDimension] *
                            mul_slice_data->rightMatrixSlice[k + mul_slice_data->matrixDimension * rightMatrixCol];
             }
-            mul_slice_data->resultMatrix[resultMatrixIndex +
-                                         mul_slice_data->matrixDimension * mul_slice_data->sliceWidth *
-                                         mul_slice_data->threadNumber] = element;
+            mul_slice_data->resultMatrix[mul_slice_data->resultMatrixSliceStartingIndex + currentResultIndex] = element;
 
-            free(leftMatrixSingleRowSlice);
-
-            resultMatrixIndex++;
+            currentResultIndex++;
         }
     }
 
@@ -115,7 +108,8 @@ void pThreadMultiply(int numThreads, int matrixDimension, double *leftMatrix, do
         thread_mul_slice_data[thread].rightMatrixSlice = rightMatrix + thread * elementsInSlice;
         thread_mul_slice_data[thread].resultMatrix = pthreadResultMatrix;
         thread_mul_slice_data[thread].matrixDimension = matrixDimension;
-        thread_mul_slice_data[thread].sliceWidth = sliceWidth;
+        thread_mul_slice_data[thread].sliceWidth = isLastThread(thread, numThreads) ? matrixDimension - (sliceWidth * (numThreads-1)) : sliceWidth;
+        thread_mul_slice_data[thread].resultMatrixSliceStartingIndex = thread * matrixDimension * sliceWidth;
         thread_mul_slice_data[thread].threadNumber = thread;
 
         //create thread to calculate slice
@@ -186,7 +180,7 @@ void calculatePthreadNorm(int numThreads, int matrixDimension, double *pthreadMu
         thread_norm_slice_data[thread].resultMatrixSlice = pthreadMulResultMatrix + thread * elementsInSlice;
         thread_norm_slice_data[thread].oneNorm = oneNorm;
         thread_norm_slice_data[thread].matrixDimension = matrixDimension;
-        thread_norm_slice_data[thread].sliceWidth = sliceWidth;
+        thread_norm_slice_data[thread].sliceWidth = isLastThread(thread, numThreads) ? matrixDimension - (sliceWidth * (numThreads-1)) : sliceWidth;
         thread_norm_slice_data[thread].mutex = mutex_one_norm;
 
         //create thread to calculate norm for cols in slice
@@ -228,7 +222,7 @@ void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulRes
 void assertNormsAreEquivalent(double serialNorm, double pThreadNorm) {
     if (serialNorm != pThreadNorm) {
         printf("Matrix norms are different. Serial norm: %f \n Pthread norm: %f \n\n", serialNorm, pThreadNorm);
-//        exit(-1);
+        exit(-1);
     }
 }
 
@@ -253,10 +247,15 @@ int main(void) {
         exit(-1);
     }
 
-    if (0 != matrixDimension % numThreads) {
-        printf("Unable to create even partitions for matrix with dimension n: %d and number of threads p: %d\n Please choose values such that n is divisible by p\n",
+    if (numThreads > matrixDimension) {
+        printf("Number of threads p: %d should be smaller than matrix dimension n: %d\n\n",
                matrixDimension, numThreads);
         exit(-1);
+    }
+
+    if (0 != matrixDimension % numThreads) {
+        printf("Matrix with dimension n: %d and number of threads p: %d will be partitioned into uneven slices\n\n",
+               matrixDimension, numThreads);
     }
 
     leftMatrix = malloc(matrixMemorySize);
