@@ -127,8 +127,6 @@ void calculateParallelNorm(int numProcesses, int matrixDimension, double *parall
     }
 }
 
-}
-
 void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulResultMatrix,
                                  const double *parallelResultMatrix) {
     bool matrixValuesAreEqual = true;
