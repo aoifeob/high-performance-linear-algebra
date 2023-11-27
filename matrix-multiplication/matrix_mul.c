@@ -203,7 +203,7 @@ int main(void) {
     scanf("%d", &matrixDimension);
 
     printf("Enter number of working processes p: \n\n");
-    if (scanf("%d", &numThreads) < 1 {
+    if (scanf("%d", &numThreads) < 1) {
         printf("Invalid number of processes %d specified", numThreads);
         exit(-1);
     }
