@@ -85,11 +85,10 @@ void parallelMultiply(int numProcesses, int matrixDimension, double *leftMatrix,
 
 void calculateParallelNorm(int numProcesses, int matrixDimension, double *parallelMulResultMatrix, double *oneNorm) {
     int threadNumber;
-    double thisColNorm=0;
     int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
 
-#pragma omp parallel shared (parallelMulResultMatrix, oneNorm) private (threadNumber, sliceWidth, elementsInSlice) reduction(+: thisColNorm)
+#pragma omp parallel shared (parallelMulResultMatrix, oneNorm) private (threadNumber, sliceWidth, elementsInSlice) reduction(+: oneNorm)
     {
         threadNumber = omp_get_thread_num();
 
@@ -104,7 +103,7 @@ void calculateParallelNorm(int numProcesses, int matrixDimension, double *parall
 
         //iterate through columns of the slice
         for (int col = 0; col < thisThreadSliceWidth; col++) {
-            thisColNorm = 0;
+            double thisColNorm = 0;
 
             //iterate through rows of the column to sum absolute values
             for (int row = 0; row < matrixDimension; row++) {
