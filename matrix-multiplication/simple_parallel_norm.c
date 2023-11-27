@@ -85,7 +85,7 @@ void parallelMultiply(int numProcesses, int matrixDimension, double *leftMatrix,
 
 void calculateParallelNorm(int numProcesses, int matrixDimension, double *parallelMulResultMatrix, double *oneNorm) {
     int threadNumber;
-    int thisColNorm=0;
+    double thisColNorm=0;
     int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
 
@@ -104,7 +104,7 @@ void calculateParallelNorm(int numProcesses, int matrixDimension, double *parall
 
         //iterate through columns of the slice
         for (int col = 0; col < thisThreadSliceWidth; col++) {
-            double thisColNorm = 0;
+            thisColNorm = 0;
 
             //iterate through rows of the column to sum absolute values
             for (int row = 0; row < matrixDimension; row++) {
