@@ -85,7 +85,7 @@ void *multiplySlice(void *arg) {
 }
 
 void parallelMultiply(int numProcesses, int matrixDimension, double *leftMatrix, double *rightMatrix,
-                     double *parallelResultMatrix) {
+                      double *parallelResultMatrix) {
     void *thread_status;
     mul_slice_data *thread_mul_slice_data;
     int sliceWidth = matrixDimension / numProcesses;
@@ -187,7 +187,8 @@ void assertNormsAreEquivalent(double serialNorm, double parallelNorm) {
 }
 
 int main(void) {
-    double *leftMatrix, *rightMatrix;
+    double leftMatrix[4] = {1, 2, 3, 4};
+    double rightMatrix[4] = {5, 6, 7, 8};
     double *parallelMulResultMatrix;
     double parallelNorm;
     struct timeval tv1, tv2;
@@ -203,7 +204,7 @@ int main(void) {
     scanf("%d", &matrixDimension);
 
     printf("Enter number of working processes p: \n\n");
-    if (scanf("%d", &numThreads) < 1 {
+    if (scanf("%d", &numThreads) < 1) {
         printf("Invalid number of processes %d specified", numThreads);
         exit(-1);
     }
@@ -221,17 +222,12 @@ int main(void) {
 
     unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
 
-    leftMatrix = (double *)malloc(matrixMemorySize);
-    rightMatrix = (double *)malloc(matrixMemorySize);
     parallelMulResultMatrix = (double *)malloc(matrixMemorySize);
 
-    if (!leftMatrix || !rightMatrix || !parallelMulResultMatrix) {
+    if (!parallelMulResultMatrix) {
         printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
         exit(-1);
     }
-
-    initMatrix(matrixDimension, leftMatrix);
-    initMatrix(matrixDimension, rightMatrix);
 
     // parallel matrix multiplication
     gettimeofday(&tv1, &tz);
@@ -268,8 +264,6 @@ int main(void) {
                matrixDimension, matrixDimension, parallelMulTimeElapsed);
     }
 
-    free(leftMatrix);
-    free(rightMatrix);
     free(parallelMulResultMatrix);
 
     return 0;
