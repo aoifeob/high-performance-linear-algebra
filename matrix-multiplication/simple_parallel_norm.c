@@ -3,34 +3,10 @@
 #include <stdbool.h>
 #include <sys/time.h>
 #include <math.h>
+#include <omp.h>
 
-typedef struct {
-    double *leftMatrix;
-    double *rightMatrixSlice;
-    double *resultMatrix;
-    int matrixDimension;
-    int sliceWidth;
-    int resultMatrixSliceStartingIndex;
-} mul_slice_data;
-
-typedef struct {
-    double *resultMatrixSlice;
-    double *oneNorm;
-    int matrixDimension;
-    int sliceWidth;
-} norm_slice_data;
-
-bool isLastThread(int threadNum, int totalThreads){
-    return threadNum == totalThreads -1;
-}
-
-void initMatrix(int matrixDimension, double matrix[]) {
-    for (int col = 0; col < matrixDimension; col++) {
-        for (int row = 0; row < matrixDimension; row++) {
-            double value = rand();
-            matrix[col * matrixDimension + row] = value;
-        }
-    }
+bool isLastThread(int threadNum, int totalThreads) {
+    return threadNum == totalThreads - 1;
 }
 
 void serialMultiply(int matrixDimension, const double *leftMatrix, const double *rightMatrix,
@@ -62,21 +38,20 @@ double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix) {
     return oneNorm;
 }
 
-void *multiplySlice(void *arg) {
-    mul_slice_data *mul_slice_data = arg;
-
+void *multiplySlice(int sliceWidth, int matrixDimension, int resultMatrixSliceStartingIndex, const double *leftMatrix,
+                    const double *rightMatrixSlice, double *parallelResultMatrix) {
     int currentResultIndex = 0;
 
-    for (int rightMatrixCol = 0; rightMatrixCol < mul_slice_data->sliceWidth; rightMatrixCol++) {
-        for (int leftMatrixRow = 0; leftMatrixRow < mul_slice_data->matrixDimension; leftMatrixRow++) {
+    for (int rightMatrixCol = 0; rightMatrixCol < sliceWidth; rightMatrixCol++) {
+        for (int leftMatrixRow = 0; leftMatrixRow < matrixDimension; leftMatrixRow++) {
 
             //calculate value for a single element of the result matrix by multiplying the single row and single column
             double element = 0;
-            for (int k = 0; k < mul_slice_data->matrixDimension; k++) {
-                element += mul_slice_data->leftMatrix[leftMatrixRow + k * mul_slice_data->matrixDimension] *
-                           mul_slice_data->rightMatrixSlice[k + mul_slice_data->matrixDimension * rightMatrixCol];
+            for (int k = 0; k < matrixDimension; k++) {
+                element += leftMatrix[leftMatrixRow + k * matrixDimension] *
+                           rightMatrixSlice[k + matrixDimension * rightMatrixCol];
             }
-            mul_slice_data->resultMatrix[mul_slice_data->resultMatrixSliceStartingIndex + currentResultIndex] = element;
+            parallelResultMatrix[resultMatrixSliceStartingIndex + currentResultIndex] = element;
 
             currentResultIndex++;
         }
@@ -86,77 +61,71 @@ void *multiplySlice(void *arg) {
 
 void parallelMultiply(int numProcesses, int matrixDimension, double *leftMatrix, double *rightMatrix,
                       double *parallelResultMatrix) {
-    void *thread_status;
-    mul_slice_data *thread_mul_slice_data;
+    int threadNumber;
     int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
 
-    thread_mul_slice_data = malloc(numProcesses * sizeof(mul_slice_data));
-
     //create threads
-    for (int thread = 0; thread < numProcesses; thread++) {
-        //construct slice data
-        thread_mul_slice_data[thread].leftMatrix = leftMatrix;
-        thread_mul_slice_data[thread].rightMatrixSlice = rightMatrix + thread * elementsInSlice;
-        thread_mul_slice_data[thread].resultMatrix = parallelResultMatrix;
-        thread_mul_slice_data[thread].matrixDimension = matrixDimension;
-        thread_mul_slice_data[thread].sliceWidth = isLastThread(thread, numProcesses) ? matrixDimension - (sliceWidth * (numProcesses-1)) : sliceWidth;
-        thread_mul_slice_data[thread].resultMatrixSliceStartingIndex = thread * matrixDimension * sliceWidth;
+#pragma omp parallel shared (leftMatrix, rightMatrix, parallelResultMatrix) private (threadNumber)
+    {
+        //construct thread data
+        threadNumber = omp_get_thread_num();
+        double *rightMatrixSlice = rightMatrix + threadNumber * elementsInSlice;
+        int thisThreadSliceWidth = isLastThread(threadNumber, numProcesses)
+                                   ? matrixDimension - (sliceWidth * (numProcesses - 1))
+                                   : sliceWidth;
+        int resultMatrixSliceStartingIndex = threadNumber * matrixDimension * sliceWidth;
 
         //calculate slice
-
-    }
-
-    free(thread_mul_slice_data);
-}
-
-void *calculateSliceNorm(void *arg) {
-    norm_slice_data *norm_slice_data = arg;
-    double sliceNorm = 0;
-
-    //iterate through columns of the slice
-    for (int col = 0; col < norm_slice_data->sliceWidth; col++) {
-        double thisColNorm = 0;
-
-        //iterate through rows of the column to sum absolute values
-        for (int row = 0; row < norm_slice_data->matrixDimension; row++) {
-            double absoluteElementValue = fabs(
-                    norm_slice_data->resultMatrixSlice[col * norm_slice_data->matrixDimension + row]);
-            thisColNorm += absoluteElementValue;
-        }
-
-        //if norm of the current column is greater than the current max column norm, update it to the current value
-        if (thisColNorm > sliceNorm) {
-            sliceNorm = thisColNorm;
-        }
-
-    }
-
-    //if norm of the current column is greater than the current max column norm, update it to the current value
-    if (sliceNorm > *(norm_slice_data->oneNorm)) {
-        *(norm_slice_data->oneNorm) = sliceNorm;
-    }
+        multiplySlice(thisThreadSliceWidth, matrixDimension, resultMatrixSliceStartingIndex,
+                      leftMatrix, rightMatrixSlice, parallelResultMatrix);
+    } //end parallel
 
 }
 
 void calculateParallelNorm(int numProcesses, int matrixDimension, double *parallelMulResultMatrix, double *oneNorm) {
-    norm_slice_data *thread_norm_slice_data;
+    int threadNumber;
     int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
 
-    thread_norm_slice_data = malloc(numProcesses * sizeof(mul_slice_data));
+#pragma omp parallel sections shared (parallelResultMatrix, oneNorm) private (threadNumber) for reduction(+: thisColNorm)
+    {
+        threadNumber = omp_get_thread_num();
 
-    for (int thread = 0; thread < numProcesses; thread++) {
-        //construct slice data
-        thread_norm_slice_data[thread].resultMatrixSlice = parallelMulResultMatrix + thread * elementsInSlice;
-        thread_norm_slice_data[thread].oneNorm = oneNorm;
-        thread_norm_slice_data[thread].matrixDimension = matrixDimension;
-        thread_norm_slice_data[thread].sliceWidth = isLastThread(thread, numProcesses) ? matrixDimension - (sliceWidth * (numProcesses-1)) : sliceWidth;
+        //construct thread data
+        double *resultMatrixSlice = parallelMulResultMatrix + threadNumber * elementsInSlice;
+        int thisThreadSliceWidth = isLastThread(threadNumber, numProcesses)
+                ? matrixDimension -(sliceWidth * (numProcesses - 1))
+                : sliceWidth;
 
         //calculate norm for cols in slice
-    }
+        double sliceNorm = 0;
 
-    free(thread_norm_slice_data);
+        //iterate through columns of the slice
+        for (int col = 0; col < thisThreadSliceWidth; col++) {
+            double thisColNorm = 0;
+
+            //iterate through rows of the column to sum absolute values
+            for (int row = 0; row < matrixDimension; row++) {
+                double absoluteElementValue = fabs(
+                        resultMatrixSlice[col * matrixDimension + row]);
+                thisColNorm += absoluteElementValue;
+            }
+
+            //if norm of the current column is greater than the current max column norm, update it to the current value
+            if (thisColNorm > sliceNorm) {
+                sliceNorm = thisColNorm;
+            }
+
+        }
+
+        //if norm of the current column is greater than the current max column norm, update it to the current value
+        if (sliceNorm > *(oneNorm)) {
+            *(oneNorm) = sliceNorm;
+        }
+    }
+}
+
 }
 
 void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulResultMatrix,
@@ -187,42 +156,46 @@ void assertNormsAreEquivalent(double serialNorm, double parallelNorm) {
 }
 
 int main(void) {
+    int maxThreads = omp_get_num_procs();
+
     double leftMatrix[4] = {1, 2, 3, 4};
     double rightMatrix[4] = {5, 6, 7, 8};
     double *parallelMulResultMatrix;
     double parallelNorm;
     struct timeval tv1, tv2;
     struct timezone tz;
-    int matrixDimension = 2048; //default value, can be overwritten by user input
-    int numThreads = 8;
+    int matrixDimension = 4; //default value, can be overwritten by user input
+    int numThreads = 2;
     int shouldRunSerialProgram = 0;
 
-    printf("This program supports serial and parallel one-norm computation. To disable serial computation, enter 1. Otherwise, enter 0.\n\n");
-    scanf("%d", &shouldRunSerialProgram);
+//    printf("This program supports serial and parallel one-norm computation. To disable serial computation, enter 1. Otherwise, enter 0.\n\n");
+//    scanf("%d", &shouldRunSerialProgram);
+//
+//    printf("Enter matrix dimension n : \n\n");
+//    scanf("%d", &matrixDimension);
+//
+//    printf("Enter number of working processes p: \n\n");
+//    if (scanf("%d", &numThreads) < 1 || numThreads > maxThreads) {
+//        printf("Invalid number of processes %d specified", numThreads);
+//        exit(-1);
+//    }
+//
+//    if (numThreads > matrixDimension) {
+//        printf("Number of processes p: %d should be smaller than matrix dimension n: %d\n\n",
+//               matrixDimension, numThreads);
+//        exit(-1);
+//    }
+//
+//    if (0 != matrixDimension % numThreads) {
+//        printf("Matrix with dimension n: %d and number of processes p: %d will be partitioned into uneven slices\n\n",
+//               matrixDimension, numThreads);
+//    }
 
-    printf("Enter matrix dimension n : \n\n");
-    scanf("%d", &matrixDimension);
-
-    printf("Enter number of working processes p: \n\n");
-    if (scanf("%d", &numThreads) < 1) {
-        printf("Invalid number of processes %d specified", numThreads);
-        exit(-1);
-    }
-
-    if (numThreads > matrixDimension) {
-        printf("Number of processes p: %d should be smaller than matrix dimension n: %d\n\n",
-               matrixDimension, numThreads);
-        exit(-1);
-    }
-
-    if (0 != matrixDimension % numThreads) {
-        printf("Matrix with dimension n: %d and number of processes p: %d will be partitioned into uneven slices\n\n",
-               matrixDimension, numThreads);
-    }
+    omp_set_num_threads(numThreads);
 
     unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
 
-    parallelMulResultMatrix = (double *)malloc(matrixMemorySize);
+    parallelMulResultMatrix = (double *) malloc(matrixMemorySize);
 
     if (!parallelMulResultMatrix) {
         printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
@@ -237,8 +210,8 @@ int main(void) {
     double parallelMulTimeElapsed =
             (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
 
-    if (!shouldRunSerialProgram){
-        double *serialMulResultMatrix = (double *)malloc(matrixMemorySize);
+    if (!shouldRunSerialProgram) {
+        double *serialMulResultMatrix = (double *) malloc(matrixMemorySize);
 
         if (!serialMulResultMatrix) {
             printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
