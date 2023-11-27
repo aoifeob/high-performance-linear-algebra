@@ -3,9 +3,6 @@
 #include <stdbool.h>
 #include <sys/time.h>
 #include <math.h>
-#include <pthread.h>
-
-#define MAX_THREADS 124
 
 typedef struct {
     double *leftMatrix;
@@ -21,7 +18,6 @@ typedef struct {
     double *oneNorm;
     int matrixDimension;
     int sliceWidth;
-    pthread_mutex_t *mutex;
 } norm_slice_data;
 
 bool isLastThread(int threadNum, int totalThreads){
@@ -66,7 +62,7 @@ double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix) {
     return oneNorm;
 }
 
-void *pThreadMultiplySlice(void *arg) {
+void *multiplySlice(void *arg) {
     mul_slice_data *mul_slice_data = arg;
 
     int currentResultIndex = 0;
@@ -86,45 +82,35 @@ void *pThreadMultiplySlice(void *arg) {
         }
     }
 
-    pthread_exit(NULL);
 }
 
-void pThreadMultiply(int numThreads, int matrixDimension, double *leftMatrix, double *rightMatrix,
-                     double *pthreadResultMatrix) {
-    pthread_t *working_thread;
+void parallelMultiply(int numProcesses, int matrixDimension, double *leftMatrix, double *rightMatrix,
+                     double *parallelResultMatrix) {
     void *thread_status;
     mul_slice_data *thread_mul_slice_data;
-    int sliceWidth = matrixDimension / numThreads;
+    int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
 
-    working_thread = malloc(numThreads * sizeof(pthread_t));
-    thread_mul_slice_data = malloc(numThreads * sizeof(mul_slice_data));
+    thread_mul_slice_data = malloc(numProcesses * sizeof(mul_slice_data));
 
     //create threads
-    for (int thread = 0; thread < numThreads; thread++) {
+    for (int thread = 0; thread < numProcesses; thread++) {
         //construct slice data
         thread_mul_slice_data[thread].leftMatrix = leftMatrix;
         thread_mul_slice_data[thread].rightMatrixSlice = rightMatrix + thread * elementsInSlice;
-        thread_mul_slice_data[thread].resultMatrix = pthreadResultMatrix;
+        thread_mul_slice_data[thread].resultMatrix = parallelResultMatrix;
         thread_mul_slice_data[thread].matrixDimension = matrixDimension;
-        thread_mul_slice_data[thread].sliceWidth = isLastThread(thread, numThreads) ? matrixDimension - (sliceWidth * (numThreads-1)) : sliceWidth;
+        thread_mul_slice_data[thread].sliceWidth = isLastThread(thread, numProcesses) ? matrixDimension - (sliceWidth * (numProcesses-1)) : sliceWidth;
         thread_mul_slice_data[thread].resultMatrixSliceStartingIndex = thread * matrixDimension * sliceWidth;
 
-        //create thread to calculate slice
-        pthread_create(&working_thread[thread], NULL, pThreadMultiplySlice,
-                       (void *) &thread_mul_slice_data[thread]);
+        //calculate slice
+
     }
 
-    //join threads
-    for (int thread = 0; thread < numThreads; thread++) {
-        pthread_join(working_thread[thread], &thread_status);
-    }
-
-    free(working_thread);
     free(thread_mul_slice_data);
 }
 
-void *pThreadCalculateSliceNorm(void *arg) {
+void *calculateSliceNorm(void *arg) {
     norm_slice_data *norm_slice_data = arg;
     double sliceNorm = 0;
 
@@ -146,68 +132,44 @@ void *pThreadCalculateSliceNorm(void *arg) {
 
     }
 
-    //lock mutex before reading
-    pthread_mutex_lock(norm_slice_data->mutex);
-
     //if norm of the current column is greater than the current max column norm, update it to the current value
     if (sliceNorm > *(norm_slice_data->oneNorm)) {
         *(norm_slice_data->oneNorm) = sliceNorm;
     }
 
-    //unlock mutex after read/write
-    pthread_mutex_unlock(norm_slice_data->mutex);
-
-    pthread_exit(NULL);
 }
 
-void calculatePthreadNorm(int numThreads, int matrixDimension, double *pthreadMulResultMatrix, double *oneNorm) {
-    pthread_t *working_thread;
-    pthread_mutex_t *mutex_one_norm;
-    void *thread_status;
+void calculateParallelNorm(int numProcesses, int matrixDimension, double *parallelMulResultMatrix, double *oneNorm) {
     norm_slice_data *thread_norm_slice_data;
-    int sliceWidth = matrixDimension / numThreads;
+    int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
 
-    working_thread = malloc(numThreads * sizeof(pthread_t));
-    thread_norm_slice_data = malloc(numThreads * sizeof(mul_slice_data));
-    mutex_one_norm = malloc(sizeof(pthread_mutex_t));
-    pthread_mutex_init(mutex_one_norm, NULL);
+    thread_norm_slice_data = malloc(numProcesses * sizeof(mul_slice_data));
 
-    for (int thread = 0; thread < numThreads; thread++) {
+    for (int thread = 0; thread < numProcesses; thread++) {
         //construct slice data
-        thread_norm_slice_data[thread].resultMatrixSlice = pthreadMulResultMatrix + thread * elementsInSlice;
+        thread_norm_slice_data[thread].resultMatrixSlice = parallelMulResultMatrix + thread * elementsInSlice;
         thread_norm_slice_data[thread].oneNorm = oneNorm;
         thread_norm_slice_data[thread].matrixDimension = matrixDimension;
-        thread_norm_slice_data[thread].sliceWidth = isLastThread(thread, numThreads) ? matrixDimension - (sliceWidth * (numThreads-1)) : sliceWidth;
-        thread_norm_slice_data[thread].mutex = mutex_one_norm;
+        thread_norm_slice_data[thread].sliceWidth = isLastThread(thread, numProcesses) ? matrixDimension - (sliceWidth * (numProcesses-1)) : sliceWidth;
 
-        //create thread to calculate norm for cols in slice
-        pthread_create(&working_thread[thread], NULL, pThreadCalculateSliceNorm,
-                       (void *) &thread_norm_slice_data[thread]);
+        //calculate norm for cols in slice
     }
 
-    //join threads
-    for (int thread = 0; thread < numThreads; thread++) {
-        pthread_join(working_thread[thread], &thread_status);
-    }
-
-    free(working_thread);
     free(thread_norm_slice_data);
-    pthread_mutex_destroy(mutex_one_norm);
-    free(mutex_one_norm);
 }
 
 void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulResultMatrix,
-                                 const double *pthreadResultMatrix) {
+                                 const double *parallelResultMatrix) {
     bool matrixValuesAreEqual = true;
     for (int col = 0; col < matrixDimension; col++) {
         for (int row = 0; row < matrixDimension; row++) {
             double serialMulElement = serialMulResultMatrix[col * matrixDimension + row];
-            double pthreadMulElement = pthreadResultMatrix[col * matrixDimension + row];
-            if (serialMulElement != pthreadMulElement) {
+            double parallelMulElement = parallelResultMatrix[col * matrixDimension + row];
+            if (serialMulElement != parallelMulElement) {
                 // print all non-matching values before exiting
-                printf("Matrix elements at column %d, row %d are different. \n Serial mul matrix value: %f \n Pthread mul matrix value: %f \n\n",
-                       col, row, serialMulElement, pthreadMulElement);
+                printf("Matrix elements at column %d, row %d are different. \n Serial mul matrix value: %f \n Parallel mul matrix value: %f \n\n",
+                       col, row, serialMulElement, parallelMulElement);
                 matrixValuesAreEqual = false;
             }
         }
@@ -217,17 +179,17 @@ void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulRes
     }
 }
 
-void assertNormsAreEquivalent(double serialNorm, double pThreadNorm) {
-    if (serialNorm != pThreadNorm) {
-        printf("Matrix norms are different. Serial norm: %f \n Pthread norm: %f \n\n", serialNorm, pThreadNorm);
+void assertNormsAreEquivalent(double serialNorm, double parallelNorm) {
+    if (serialNorm != parallelNorm) {
+        printf("Matrix norms are different. Serial norm: %f \n Parallel norm: %f \n\n", serialNorm, parallelNorm);
         exit(-1);
     }
 }
 
 int main(void) {
     double *leftMatrix, *rightMatrix;
-    double *pthreadMulResultMatrix;
-    double pThreadNorm;
+    double *parallelMulResultMatrix;
+    double parallelNorm;
     struct timeval tv1, tv2;
     struct timezone tz;
     int matrixDimension = 2048; //default value, can be overwritten by user input
@@ -240,20 +202,20 @@ int main(void) {
     printf("Enter matrix dimension n : \n\n");
     scanf("%d", &matrixDimension);
 
-    printf("Enter number of working threads p: \n\n");
+    printf("Enter number of working processes p: \n\n");
     if (scanf("%d", &numThreads) < 1 || numThreads > MAX_THREADS) {
-        printf("Invalid number of threads %d specified", numThreads);
+        printf("Invalid number of processes %d specified", numThreads);
         exit(-1);
     }
 
     if (numThreads > matrixDimension) {
-        printf("Number of threads p: %d should be smaller than matrix dimension n: %d\n\n",
+        printf("Number of processes p: %d should be smaller than matrix dimension n: %d\n\n",
                matrixDimension, numThreads);
         exit(-1);
     }
 
     if (0 != matrixDimension % numThreads) {
-        printf("Matrix with dimension n: %d and number of threads p: %d will be partitioned into uneven slices\n\n",
+        printf("Matrix with dimension n: %d and number of processes p: %d will be partitioned into uneven slices\n\n",
                matrixDimension, numThreads);
     }
 
@@ -261,9 +223,9 @@ int main(void) {
 
     leftMatrix = (double *)malloc(matrixMemorySize);
     rightMatrix = (double *)malloc(matrixMemorySize);
-    pthreadMulResultMatrix = (double *)malloc(matrixMemorySize);
+    parallelMulResultMatrix = (double *)malloc(matrixMemorySize);
 
-    if (!leftMatrix || !rightMatrix || !pthreadMulResultMatrix) {
+    if (!leftMatrix || !rightMatrix || !parallelMulResultMatrix) {
         printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
         exit(-1);
     }
@@ -271,12 +233,12 @@ int main(void) {
     initMatrix(matrixDimension, leftMatrix);
     initMatrix(matrixDimension, rightMatrix);
 
-    // pthread matrix multiplication
+    // parallel matrix multiplication
     gettimeofday(&tv1, &tz);
-    pThreadMultiply(numThreads, matrixDimension, leftMatrix, rightMatrix, pthreadMulResultMatrix);
-    calculatePthreadNorm(numThreads, matrixDimension, pthreadMulResultMatrix, &pThreadNorm);
+    parallelMultiply(numThreads, matrixDimension, leftMatrix, rightMatrix, parallelMulResultMatrix);
+    calculateParallelNorm(numThreads, matrixDimension, parallelMulResultMatrix, &parallelNorm);
     gettimeofday(&tv2, &tz);
-    double pthreadMulTimeElapsed =
+    double parallelMulTimeElapsed =
             (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
 
     if (!shouldRunSerialProgram){
@@ -294,21 +256,21 @@ int main(void) {
         gettimeofday(&tv2, &tz);
         double serialMulTimeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
 
-        assertMatricesAreEquivalent(matrixDimension, serialMulResultMatrix, pthreadMulResultMatrix);
-        assertNormsAreEquivalent(serialNorm, pThreadNorm);
+        assertMatricesAreEquivalent(matrixDimension, serialMulResultMatrix, parallelMulResultMatrix);
+        assertNormsAreEquivalent(serialNorm, parallelNorm);
 
-        printf("Times taken for matrix multiplication on array with %dx%d dimensions: \n Serial: %f \n Pthread: %f\n\n",
-               matrixDimension, matrixDimension, serialMulTimeElapsed, pthreadMulTimeElapsed);
+        printf("Times taken for matrix multiplication on array with %dx%d dimensions: \n Serial: %f \n Parallel: %f\n\n",
+               matrixDimension, matrixDimension, serialMulTimeElapsed, parallelMulTimeElapsed);
 
         free(serialMulResultMatrix);
     } else {
         printf("Time taken for parallel matrix multiplication on array with %dx%d dimensions: %f\n\n",
-               matrixDimension, matrixDimension, pthreadMulTimeElapsed);
+               matrixDimension, matrixDimension, parallelMulTimeElapsed);
     }
 
     free(leftMatrix);
     free(rightMatrix);
-    free(pthreadMulResultMatrix);
+    free(parallelMulResultMatrix);
 
     return 0;
 }
