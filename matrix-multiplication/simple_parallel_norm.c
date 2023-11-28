@@ -107,6 +107,7 @@ void *calculateSliceNorm(int matrixDimension, int sliceWidth, const double *resu
     //if norm of the current column is greater than the current max column norm, update it to the current value
     if (sliceNorm > *(oneNorm)) {
         *(oneNorm) = sliceNorm;
+        printf("Updating one norm to %f\n\n", sliceNorm);
     }
 
 }
