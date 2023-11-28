@@ -9,6 +9,16 @@ bool isLastThread(int threadNum, int totalThreads) {
     return threadNum == totalThreads - 1;
 }
 
+void print(int matrixDimension, const double *matrix) {
+    for (int col = 0; col < matrixDimension; col++) {
+        for (int row = 0; row < matrixDimension; row++) {
+            printf("%f\t", matrix[col * matrixDimension + row]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
 void serialMultiply(int matrixDimension, const double *leftMatrix, const double *rightMatrix,
                     double *serialMulResultMatrix) {
     for (int col = 0; col < matrixDimension; col++) {
@@ -124,8 +134,8 @@ void calculateParallelNorm(int numProcesses, int matrixDimension, double *parall
         //construct thread data
         double *resultMatrixSlice = parallelMulResultMatrix + threadNumber * elementsInSlice;
         int thisThreadSliceWidth = isLastThread(threadNumber, numProcesses)
-                ? matrixDimension -(sliceWidth * (numProcesses - 1))
-                : sliceWidth;
+                                   ? matrixDimension - (sliceWidth * (numProcesses - 1))
+                                   : sliceWidth;
 
         calculateSliceNorm(matrixDimension, thisThreadSliceWidth, resultMatrixSlice, oneNorm);
     }
@@ -167,7 +177,7 @@ int main(void) {
     double parallelNorm;
     struct timeval tv1, tv2;
     struct timezone tz;
-    int matrixDimension = 4; //default value, can be overwritten by user input
+    int matrixDimension = 2; //default value, can be overwritten by user input
     int numThreads = 2;
     int shouldRunSerialProgram = 0;
 
@@ -207,8 +217,8 @@ int main(void) {
 
     // parallel matrix multiplication
     gettimeofday(&tv1, &tz);
-    parallelMultiply(numThreads, matrixDimension, leftMatrix, rightMatrix, parallelMulResultMatrix);
-    calculateParallelNorm(numThreads, matrixDimension, parallelMulResultMatrix, &parallelNorm);
+    //parallelMultiply(numThreads, matrixDimension, leftMatrix, rightMatrix, parallelMulResultMatrix);
+    //calculateParallelNorm(numThreads, matrixDimension, parallelMulResultMatrix, &parallelNorm);
     gettimeofday(&tv2, &tz);
     double parallelMulTimeElapsed =
             (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
@@ -229,6 +239,7 @@ int main(void) {
         double serialMulTimeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
 
         assertMatricesAreEquivalent(matrixDimension, serialMulResultMatrix, parallelMulResultMatrix);
+        print(matrixDimension, serialMulResultMatrix);
         assertNormsAreEquivalent(serialNorm, parallelNorm);
 
         printf("Times taken for matrix multiplication on array with %dx%d dimensions: \n Serial: %f \n Parallel: %f\n\n",
