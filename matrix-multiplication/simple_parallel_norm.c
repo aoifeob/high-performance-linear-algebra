@@ -83,12 +83,40 @@ void parallelMultiply(int numProcesses, int matrixDimension, double *leftMatrix,
 
 }
 
+void *calculateSliceNorm(int matrixDimension, int sliceWidth, const double *resultMatrixSlice, double *oneNorm) {
+    double sliceNorm = 0;
+
+    //iterate through columns of the slice
+    for (int col = 0; col < sliceWidth; col++) {
+        double thisColNorm = 0;
+
+        //iterate through rows of the column to sum absolute values
+        for (int row = 0; row < matrixDimension; row++) {
+            double absoluteElementValue = fabs(
+                    resultMatrixSlice[col * matrixDimension + row]);
+            thisColNorm += absoluteElementValue;
+        }
+
+        //if norm of the current column is greater than the current max column norm, update it to the current value
+        if (thisColNorm > sliceNorm) {
+            sliceNorm = thisColNorm;
+        }
+
+    }
+
+    //if norm of the current column is greater than the current max column norm, update it to the current value
+    if (sliceNorm > *(oneNorm)) {
+        *(oneNorm) = sliceNorm;
+    }
+
+}
+
 void calculateParallelNorm(int numProcesses, int matrixDimension, double *parallelMulResultMatrix, double *oneNorm) {
     int threadNumber;
     int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
 
-#pragma omp parallel shared (parallelMulResultMatrix, oneNorm) private (threadNumber, sliceWidth, elementsInSlice) reduction(+: oneNorm)
+#pragma omp parallel shared (parallelMulResultMatrix, oneNorm) private (threadNumber, sliceWidth, elementsInSlice)
     {
         threadNumber = omp_get_thread_num();
 
@@ -98,31 +126,7 @@ void calculateParallelNorm(int numProcesses, int matrixDimension, double *parall
                 ? matrixDimension -(sliceWidth * (numProcesses - 1))
                 : sliceWidth;
 
-        //calculate norm for cols in slice
-        double sliceNorm = 0;
-
-        //iterate through columns of the slice
-        for (int col = 0; col < thisThreadSliceWidth; col++) {
-            double thisColNorm = 0;
-
-            //iterate through rows of the column to sum absolute values
-            for (int row = 0; row < matrixDimension; row++) {
-                double absoluteElementValue = fabs(
-                        resultMatrixSlice[col * matrixDimension + row]);
-                thisColNorm += absoluteElementValue;
-            }
-
-            //if norm of the current column is greater than the current max column norm, update it to the current value
-            if (thisColNorm > sliceNorm) {
-                sliceNorm = thisColNorm;
-            }
-
-        }
-
-        //if norm of the current column is greater than the current max column norm, update it to the current value
-        if (sliceNorm > *(oneNorm)) {
-            *(oneNorm) = sliceNorm;
-        }
+        calculateSliceNorm(matrixDimension, thisThreadSliceWidth, resultMatrixSlice, oneNorm);
     }
 }
 
