@@ -5,6 +5,8 @@ int main(void) {
     int numProcesses = omp_get_num_procs();
     int sumTotal = 0;
 
+    printf("Number of processes is %d \n", numProcesses);
+
     omp_set_num_threads(numProcesses);
 
     #pragma omp parallel for reduction(+: sumTotal)

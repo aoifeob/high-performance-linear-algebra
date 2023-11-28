@@ -74,6 +74,5 @@ int main(void) {
 
     free(serialMulResultMatrix);
 
-
     return 0;
 }
