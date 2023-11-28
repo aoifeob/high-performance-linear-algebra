@@ -4,15 +4,6 @@
 #include <sys/time.h>
 #include <omp.h>
 
-typedef struct {
-    double *leftMatrix;
-    double *rightMatrixSlice;
-    double *resultMatrix;
-    int matrixDimension;
-    int sliceWidth;
-    int resultMatrixSliceStartingIndex;
-} mul_slice_data;
-
 bool isLastThread(int threadNum, int totalThreads) {
     return threadNum == totalThreads - 1;
 }
