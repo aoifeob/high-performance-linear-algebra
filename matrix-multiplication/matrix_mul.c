@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <sys/time.h>
 #include <math.h>
+#include <omp.h>
 
 typedef struct {
     double *leftMatrix;
@@ -187,6 +188,8 @@ void assertNormsAreEquivalent(double serialNorm, double parallelNorm) {
 }
 
 int main(void) {
+    int maxThreads = omp_get_num_procs();
+
     double *leftMatrix, *rightMatrix;
     double *parallelMulResultMatrix;
     double parallelNorm;
@@ -203,7 +206,7 @@ int main(void) {
     scanf("%d", &matrixDimension);
 
     printf("Enter number of working processes p: \n\n");
-    if (scanf("%d", &numThreads) < 1) {
+    if (scanf("%d", &numThreads) < 1 || numThreads > maxThreads) {
         printf("Invalid number of processes %d specified", numThreads);
         exit(-1);
     }
@@ -218,6 +221,8 @@ int main(void) {
         printf("Matrix with dimension n: %d and number of processes p: %d will be partitioned into uneven slices\n\n",
                matrixDimension, numThreads);
     }
+
+    omp_set_num_threads(numThreads);
 
     unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
 
