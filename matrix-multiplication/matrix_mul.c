@@ -20,16 +20,20 @@ void initMatrix(int matrixDimension, double matrix[]) {
 
 void serialMultiply(int matrixDimension, const double *leftMatrix, const double *rightMatrix,
                     double *serialMulResultMatrix) {
-    for (int col = 0; col < matrixDimension; col++) {
-        for (int row = 0; row < matrixDimension; row++) {
-            double element = 0;
-            for (int k = 0; k < matrixDimension; k++) {
-
-                element += leftMatrix[row + k * matrixDimension] * rightMatrix[k + matrixDimension * col];
-            }
-            serialMulResultMatrix[col * matrixDimension + row] = element;
-        }
-    }
+    cblas_dgemm(CblasColMajor,
+                CblasNoTrans,
+                CblasNoTrans,
+                matrixDimension,
+                matrixDimension,
+                matrixDimension,
+                1.0,
+                leftMatrix,
+                matrixDimension,
+                rightMatrix,
+                matrixDimension,
+                1.0,
+                serialMulResultMatrix,
+                matrixDimension);
 }
 
 double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix) {
