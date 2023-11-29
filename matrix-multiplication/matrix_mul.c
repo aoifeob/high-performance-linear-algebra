@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <math.h>
 #include <omp.h>
+#include <cblas.h>
 
 bool isLastThread(int threadNum, int totalThreads) {
     return threadNum == totalThreads - 1;
