@@ -5,14 +5,13 @@
 #include <math.h>
 #include <cblas.h>
 
-void print(int matrixDimension, const double *matrix) {
+void initMatrix(int matrixDimension, double matrix[]) {
     for (int col = 0; col < matrixDimension; col++) {
         for (int row = 0; row < matrixDimension; row++) {
-            printf("%f\t", matrix[col * matrixDimension + row]);
+            double value = rand();
+            matrix[col * matrixDimension + row] = value;
         }
-        printf("\n");
     }
-    printf("\n");
 }
 
 void serialMultiply(int matrixDimension, const double *leftMatrix, const double *rightMatrix,
@@ -83,18 +82,25 @@ void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulRes
 }
 
 int main(void) {
-    double leftMatrix[4] = {1, 2, 3, 4};
-    double rightMatrix[4] = {5, 6, 7, 8};
+    double *leftMatrix, *rightMatrix;
     int matrixDimension = 2; //default value, can be overwritten by user input
 
+    printf("Enter matrix dimension n : \n\n");
+    scanf("%d", &matrixDimension);
+
     unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
+    leftMatrix = (double *)malloc(matrixMemorySize);
+    rightMatrix = (double *)malloc(matrixMemorySize);
     double *serialMulResultMatrix = (double *) malloc(matrixMemorySize);
     double *blasMulResultMatrix = (double *) malloc(matrixMemorySize);
 
-    if (!serialMulResultMatrix) {
+    if (!leftMatrix || !rightMatrix || !serialMulResultMatrix) {
         printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
         exit(-1);
     }
+
+    initMatrix(matrixDimension, leftMatrix);
+    initMatrix(matrixDimension, rightMatrix);
 
     // Serial matrix multiplication
     serialMultiply(matrixDimension, leftMatrix, rightMatrix, serialMulResultMatrix);
@@ -102,6 +108,10 @@ int main(void) {
 
     assertMatricesAreEquivalent(matrixDimension, serialMulResultMatrix, blasMulResultMatrix);
 
+    printf("Okay\n");
+
+    free(leftMatrix);
+    free(rightMatrix);
     free(serialMulResultMatrix);
 
     return 0;
