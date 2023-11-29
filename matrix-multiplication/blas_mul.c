@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <sys/time.h>
 #include <math.h>
+#include <cblas.h>
 
 void print(int matrixDimension, const double *matrix) {
     for (int col = 0; col < matrixDimension; col++) {
@@ -27,6 +29,24 @@ void serialMultiply(int matrixDimension, const double *leftMatrix, const double 
     }
 }
 
+void blasMultiply(int matrixDimension, const double *leftMatrix, const double *rightMatrix,
+                  double *blasMulResultMatrix){
+    cblas_dgemm(CblasColMajor,
+                CblasNoTrans,
+                CblasNoTrans,
+                matrixDimension,
+                matrixDimension,
+                matrixDimension,
+                1.0,
+                leftMatrix,
+                matrixDimension,
+                rightMatrix,
+                matrixDimension,
+                1.0,
+                blasMulResultMatrix,
+                matrixDimension);
+}
+
 double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix) {
     double oneNorm = 0;
     for (int col = 0; col < matrixDimension; col++) {
@@ -42,15 +62,34 @@ double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix) {
     return oneNorm;
 }
 
+void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulResultMatrix,
+                                 const double *parallelResultMatrix) {
+    bool matrixValuesAreEqual = true;
+    for (int col = 0; col < matrixDimension; col++) {
+        for (int row = 0; row < matrixDimension; row++) {
+            double serialMulElement = serialMulResultMatrix[col * matrixDimension + row];
+            double parallelMulElement = parallelResultMatrix[col * matrixDimension + row];
+            if (serialMulElement != parallelMulElement) {
+                // print all non-matching values before exiting
+                printf("Matrix elements at column %d, row %d are different. \n Serial mul matrix value: %f \n Parallel mul matrix value: %f \n\n",
+                       col, row, serialMulElement, parallelMulElement);
+                matrixValuesAreEqual = false;
+            }
+        }
+    }
+    if (!matrixValuesAreEqual) {
+        exit(-1);
+    }
+}
+
 int main(void) {
     double leftMatrix[4] = {1, 2, 3, 4};
     double rightMatrix[4] = {5, 6, 7, 8};
-    struct timeval tv1, tv2;
-    struct timezone tz;
     int matrixDimension = 2; //default value, can be overwritten by user input
 
     unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
     double *serialMulResultMatrix = (double *) malloc(matrixMemorySize);
+    double *blasMulResultMatrix = (double *) malloc(matrixMemorySize);
 
     if (!serialMulResultMatrix) {
         printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
@@ -58,18 +97,10 @@ int main(void) {
     }
 
     // Serial matrix multiplication
-    gettimeofday(&tv1, &tz);
     serialMultiply(matrixDimension, leftMatrix, rightMatrix, serialMulResultMatrix);
-    double serialNorm = calculateSerialNorm(matrixDimension, serialMulResultMatrix);
-    gettimeofday(&tv2, &tz);
-    double serialMulTimeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
+    blasMultiply(matrixDimension, leftMatrix, rightMatrix, blasMulResultMatrix);
 
-    print(matrixDimension, serialMulResultMatrix);
-
-    printf("Matrix norm %f\n\n", serialNorm);
-
-    printf("Times taken for matrix multiplication on array with %dx%d dimensions: \n Serial: %f\n\n",
-           matrixDimension, matrixDimension, serialMulTimeElapsed);
+    assertMatricesAreEquivalent(matrixDimension, serialMulResultMatrix, blasMulResultMatrix);
 
     free(serialMulResultMatrix);
 
