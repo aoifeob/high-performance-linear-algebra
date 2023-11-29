@@ -58,10 +58,9 @@ void calculateParallelNorm(int numProcesses, int matrixDimension, double *parall
     int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
 
-#pragma omp parallel shared (parallelMulResultMatrix, oneNorm) private (threadNumber, sliceWidth, elementsInSlice)
+#pragma omp parallel shared (parallelMulResultMatrix, oneNorm, sliceWidth, elementsInSlice) private (threadNumber)
     {
         threadNumber = omp_get_thread_num();
-        printf("Thread %d calculating norm\n\n", threadNumber);
 
         //construct thread data
         double *resultMatrixSlice = parallelMulResultMatrix + threadNumber * elementsInSlice;

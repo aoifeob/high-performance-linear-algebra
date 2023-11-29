@@ -127,7 +127,7 @@ void calculateParallelNorm(int numProcesses, int matrixDimension, double *parall
     int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
 
-#pragma omp parallel shared (parallelMulResultMatrix, oneNorm) private (threadNumber, sliceWidth, elementsInSlice)
+#pragma omp parallel shared (parallelMulResultMatrix, oneNorm, sliceWidth, elementsInSlice) private (threadNumber)
     {
         threadNumber = omp_get_thread_num();
 
@@ -169,8 +169,6 @@ void assertNormsAreEquivalent(double serialNorm, double parallelNorm) {
 }
 
 int main(void) {
-    int maxThreads = omp_get_num_procs();
-
     double leftMatrix[4] = {1, 2, 3, 4};
     double rightMatrix[4] = {5, 6, 7, 8};
     double *parallelMulResultMatrix;
@@ -179,30 +177,6 @@ int main(void) {
     struct timezone tz;
     int matrixDimension = 2; //default value, can be overwritten by user input
     int numThreads = 2;
-    int shouldRunSerialProgram = 0;
-
-//    printf("This program supports serial and parallel one-norm computation. To disable serial computation, enter 1. Otherwise, enter 0.\n\n");
-//    scanf("%d", &shouldRunSerialProgram);
-//
-//    printf("Enter matrix dimension n : \n\n");
-//    scanf("%d", &matrixDimension);
-//
-//    printf("Enter number of working processes p: \n\n");
-//    if (scanf("%d", &numThreads) < 1 || numThreads > maxThreads) {
-//        printf("Invalid number of processes %d specified", numThreads);
-//        exit(-1);
-//    }
-//
-//    if (numThreads > matrixDimension) {
-//        printf("Number of processes p: %d should be smaller than matrix dimension n: %d\n\n",
-//               matrixDimension, numThreads);
-//        exit(-1);
-//    }
-//
-//    if (0 != matrixDimension % numThreads) {
-//        printf("Matrix with dimension n: %d and number of processes p: %d will be partitioned into uneven slices\n\n",
-//               matrixDimension, numThreads);
-//    }
 
     omp_set_num_threads(numThreads);
 
@@ -217,40 +191,34 @@ int main(void) {
 
     // parallel matrix multiplication
     gettimeofday(&tv1, &tz);
-    //parallelMultiply(numThreads, matrixDimension, leftMatrix, rightMatrix, parallelMulResultMatrix);
-    //calculateParallelNorm(numThreads, matrixDimension, parallelMulResultMatrix, &parallelNorm);
+    parallelMultiply(numThreads, matrixDimension, leftMatrix, rightMatrix, parallelMulResultMatrix);
+    calculateParallelNorm(numThreads, matrixDimension, parallelMulResultMatrix, &parallelNorm);
     gettimeofday(&tv2, &tz);
     double parallelMulTimeElapsed =
             (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
 
-    if (!shouldRunSerialProgram) {
-        double *serialMulResultMatrix = (double *) malloc(matrixMemorySize);
+    double *serialMulResultMatrix = (double *) malloc(matrixMemorySize);
 
-        if (!serialMulResultMatrix) {
-            printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
-            exit(-1);
-        }
-
-        // Serial matrix multiplication
-        gettimeofday(&tv1, &tz);
-        serialMultiply(matrixDimension, leftMatrix, rightMatrix, serialMulResultMatrix);
-        double serialNorm = calculateSerialNorm(matrixDimension, serialMulResultMatrix);
-        gettimeofday(&tv2, &tz);
-        double serialMulTimeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
-
-        assertMatricesAreEquivalent(matrixDimension, serialMulResultMatrix, parallelMulResultMatrix);
-        print(matrixDimension, serialMulResultMatrix);
-        assertNormsAreEquivalent(serialNorm, parallelNorm);
-
-        printf("Times taken for matrix multiplication on array with %dx%d dimensions: \n Serial: %f \n Parallel: %f\n\n",
-               matrixDimension, matrixDimension, serialMulTimeElapsed, parallelMulTimeElapsed);
-
-        free(serialMulResultMatrix);
-    } else {
-        printf("Time taken for parallel matrix multiplication on array with %dx%d dimensions: %f\n\n",
-               matrixDimension, matrixDimension, parallelMulTimeElapsed);
+    if (!serialMulResultMatrix) {
+        printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
+        exit(-1);
     }
 
+    // Serial matrix multiplication
+    gettimeofday(&tv1, &tz);
+    serialMultiply(matrixDimension, leftMatrix, rightMatrix, serialMulResultMatrix);
+    double serialNorm = calculateSerialNorm(matrixDimension, serialMulResultMatrix);
+    gettimeofday(&tv2, &tz);
+    double serialMulTimeElapsed = (double) (tv2.tv_sec - tv1.tv_sec) + (double) (tv2.tv_usec - tv1.tv_usec) * 1.e-6;
+
+    assertMatricesAreEquivalent(matrixDimension, serialMulResultMatrix, parallelMulResultMatrix);
+    print(matrixDimension, serialMulResultMatrix);
+    assertNormsAreEquivalent(serialNorm, parallelNorm);
+
+    printf("Times taken for matrix multiplication on array with %dx%d dimensions: \n Serial: %f \n Parallel: %f\n\n",
+           matrixDimension, matrixDimension, serialMulTimeElapsed, parallelMulTimeElapsed);
+
+    free(serialMulResultMatrix);
     free(parallelMulResultMatrix);
 
     return 0;
