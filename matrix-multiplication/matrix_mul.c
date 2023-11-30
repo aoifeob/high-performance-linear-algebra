@@ -41,6 +41,7 @@ double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix) {
             double absoluteElementValue = fabs(serialMulResultMatrix[col * matrixDimension + row]);
             thisColNorm += absoluteElementValue;
         }
+        #pragma omp critical
         if (thisColNorm > oneNorm) {
             oneNorm = thisColNorm;
         }
