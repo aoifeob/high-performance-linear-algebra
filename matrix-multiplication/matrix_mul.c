@@ -41,7 +41,6 @@ double calculateSerialNorm(int matrixDimension, double *serialMulResultMatrix) {
             double absoluteElementValue = fabs(serialMulResultMatrix[col * matrixDimension + row]);
             thisColNorm += absoluteElementValue;
         }
-        #pragma omp critical
         if (thisColNorm > oneNorm) {
             oneNorm = thisColNorm;
         }
@@ -116,9 +115,9 @@ void *calculateSliceNorm(int matrixDimension, int sliceWidth, const double *resu
     }
 
     //if norm of the current column is greater than the current max column norm, update it to the current value
+#pragma omp critical
     if (sliceNorm > *(oneNorm)) {
         *(oneNorm) = sliceNorm;
-        printf("Updating one norm to %f\n\n", sliceNorm);
     }
 
 }
