@@ -13,7 +13,7 @@ int main(void) {
 
         printf("Thread %d beginning execution\n", omp_get_thread_num());
 
-    #pragma omp parallel for reduction(+: sumTotal)
+        #pragma omp parallel for reduction(+: sumTotal)
         for (int i = 0; i < numProcesses; i++) {
             sumTotal += i;
         }
