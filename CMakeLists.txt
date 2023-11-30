@@ -5,4 +5,4 @@ set(CMAKE_CXX_STANDARD 14)
 
 add_executable(high_performance_linear_algebra
         matrix-multiplication/matrix_mul.c
-        matrix-multiplication/simple_parallel_sum.c)
+        matrix-multiplication/testing-openmp/simple_parallel_sum.c)
