@@ -13,24 +13,19 @@ int main(void) {
 
 #pragma omp parallel shared(myInt)
     {
-
-        int threadNum = omp_get_thread_num();
-
-        printf("Thread %d beginning execution\n", threadNum);
+        printf("Thread %d beginning execution\n", omp_get_thread_num());
 
 #pragma omp parallel for reduction(+: sumTotal)
-        int innerThreadNum = omp_get_thread_num();
-
         for (int i = 0; i < numProcesses; i++) {
-                printf("Thread %d incrementing total by %d \n", innerThreadNum, i);
-                sumTotal += i;
-            }
+            printf("Thread %d incrementing total by %d \n", omp_get_thread_num(), i);
+            sumTotal += i;
+        }
 
         printf("Total sum is %d \n", sumTotal);
 
 #pragma omp critical
         myInt++;
-        printf("Thread %d incremented myInt to %d\n", threadNum, myInt);
+        printf("Thread %d incremented myInt to %d\n", omp_get_thread_num(), myInt);
     }
 
     return 0;
