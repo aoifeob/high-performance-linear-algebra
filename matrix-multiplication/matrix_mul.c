@@ -56,13 +56,19 @@ void parallelMultiply(int numProcesses, int matrixDimension, const double *leftM
     int currentResultIndex = 0;
 
     //create parallel region
-#pragma omp parallel
-#pragma omp for shared (leftMatrix, rightMatrix, parallelResultMatrix, sliceWidth, elementsInSlice) private (threadNumber, currentResultIndex)
+#pragma omp parallel private (threadNumber, currentResultIndex)
     {
+        int numThreads = omp_get_num_threads();
+        threadNumber = omp_get_thread_num();
+        int resultMatrixStartingIndex = threadNumber * matrixDimension * sliceWidth;
+        double *rightMatrixSlice = rightMatrix + threadNumber * elementsInSlice;
+        int thisThreadSliceWidth = isLastThread(threadNumber, numThreads)
+                ? matrixDimension - (sliceWidth * (numThreads-1))
+                : sliceWidth;
+
+#pragma omp for
         //calculate results for each slice
-        for (int rightMatrixCol = 0; rightMatrixCol < matrixDimension; rightMatrixCol += sliceWidth) {
-            threadNumber = omp_get_thread_num();
-            double *rightMatrixSlice = rightMatrix + threadNumber * elementsInSlice;
+        for (int rightMatrixCol = 0; rightMatrixCol < thisThreadSliceWidth; rightMatrixCol++) {
 
             for (int leftMatrixRow = 0; leftMatrixRow < matrixDimension; leftMatrixRow++) {
 
@@ -72,7 +78,8 @@ void parallelMultiply(int numProcesses, int matrixDimension, const double *leftM
                     element += leftMatrix[leftMatrixRow + k * matrixDimension] *
                                rightMatrixSlice[k + matrixDimension * rightMatrixCol];
                 }
-                parallelResultMatrix[(threadNumber * matrixDimension * sliceWidth) + currentResultIndex] = element;
+
+                parallelResultMatrix[resultMatrixStartingIndex + currentResultIndex] = element;
 
                 currentResultIndex++;
             }
