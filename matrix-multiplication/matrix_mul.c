@@ -4,7 +4,6 @@
 #include <sys/time.h>
 #include <math.h>
 #include <omp.h>
-#include <cblas.h>
 
 bool isLastThread(int threadNum, int totalThreads) {
     return threadNum == totalThreads - 1;
@@ -53,22 +52,30 @@ void parallelMultiply(int numProcesses, int matrixDimension, const double *leftM
     int threadNumber;
     int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
-    int currentResultIndex = 0;
 
     //create parallel region
-#pragma omp parallel private (threadNumber, currentResultIndex)
+#pragma omp parallel shared (sliceWidth, elementsInSlice) private (threadNumber)
     {
         int numThreads = omp_get_num_threads();
         threadNumber = omp_get_thread_num();
-        int resultMatrixStartingIndex = threadNumber * matrixDimension * sliceWidth;
+
+        int resultMatrixStartingIndex = threadNumber * elementsInSlice;
         double *rightMatrixSlice = rightMatrix + threadNumber * elementsInSlice;
         int thisThreadSliceWidth = isLastThread(threadNumber, numThreads)
-                ? matrixDimension - (sliceWidth * (numThreads-1))
-                : sliceWidth;
+                                   ? matrixDimension - (sliceWidth * (numThreads-1))
+                                   : sliceWidth;
+
+        int currentResultIndex = 0;
+
+        printf("Thread %d has starting index %d and slice width %d\n ", threadNumber, resultMatrixStartingIndex, thisThreadSliceWidth);
 
 #pragma omp for
         //calculate results for each slice
-        for (int rightMatrixCol = 0; rightMatrixCol < thisThreadSliceWidth; rightMatrixCol++) {
+        for (int rightMatrixCol = 0; rightMatrixCol < matrixDimension; rightMatrixCol+=sliceWidth) {
+
+            //TODO: add loop to iterate through cols in slice width, OR use schedule with for
+
+            printf("Thread %d of %d beginning execution of loop with slice width %d\n ", threadNumber, numThreads, thisThreadSliceWidth);
 
             for (int leftMatrixRow = 0; leftMatrixRow < matrixDimension; leftMatrixRow++) {
 
@@ -79,7 +86,9 @@ void parallelMultiply(int numProcesses, int matrixDimension, const double *leftM
                                rightMatrixSlice[k + matrixDimension * rightMatrixCol];
                 }
 
-                parallelResultMatrix[resultMatrixStartingIndex + currentResultIndex] = element;
+                printf("Thread %d attempting to update result matrix index %d\n", threadNumber, resultMatrixStartingIndex + currentResultIndex);
+
+                //parallelResultMatrix[resultMatrixStartingIndex + currentResultIndex] = element;
 
                 currentResultIndex++;
             }
