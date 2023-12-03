@@ -68,11 +68,8 @@ void parallelMultiply(int numProcesses, int matrixDimension, const double *leftM
         int currentResultIndex = 0;
 
 #pragma omp for
-        //calculate results for each slice
+        //calculate result matrix elements for each slice
         for (int rightMatrixCol = 0; rightMatrixCol < matrixDimension; rightMatrixCol += sliceWidth) {
-
-            printf("Thread %d of %d beginning execution of loop with slice width %d\n ", threadNumber, numThreads,
-                   thisThreadSliceWidth);
 
             for (int colInSlice = 0; colInSlice < thisThreadSliceWidth; colInSlice++) {
 
@@ -95,39 +92,13 @@ void parallelMultiply(int numProcesses, int matrixDimension, const double *leftM
 
 }
 
-void *calculateSliceNorm(int matrixDimension, int sliceWidth, const double *resultMatrixSlice, double *oneNorm) {
-    double sliceNorm = 0;
-
-    //iterate through columns of the slice
-    for (int col = 0; col < sliceWidth; col++) {
-        double thisColNorm = 0;
-
-        //iterate through rows of the column to sum absolute values
-        for (int row = 0; row < matrixDimension; row++) {
-            thisColNorm += fabs(resultMatrixSlice[col * matrixDimension + row]);
-        }
-
-        //if norm of the current column is greater than the current max column norm, update it to the current value
-        if (thisColNorm > sliceNorm) {
-            sliceNorm = thisColNorm;
-        }
-
-    }
-
-    //if norm of the current column is greater than the current max column norm, update it to the current value
-#pragma omp critical
-    if (sliceNorm > *(oneNorm)) {
-        *(oneNorm) = sliceNorm;
-    }
-
-}
-
 void calculateParallelNorm(int numProcesses, int matrixDimension, double *parallelMulResultMatrix, double *oneNorm) {
     int threadNumber;
+    double sliceNorm = 0;
     int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
 
-#pragma omp parallel shared (parallelMulResultMatrix, oneNorm, sliceWidth, elementsInSlice) private (threadNumber)
+#pragma omp parallel shared (sliceWidth, elementsInSlice) private (threadNumber, sliceNorm)
     {
         threadNumber = omp_get_thread_num();
 
@@ -136,9 +107,31 @@ void calculateParallelNorm(int numProcesses, int matrixDimension, double *parall
         int thisThreadSliceWidth = isLastThread(threadNumber, numProcesses)
                                    ? matrixDimension - (sliceWidth * (numProcesses - 1))
                                    : sliceWidth;
+#pragma omp for
+        //iterate through columns of the slice
+        for (int resultMatrixCols = 0; resultMatrixCols < matrixDimension; resultMatrixCols += sliceWidth) {
+            for (int colInSlice = 0; colInSlice < thisThreadSliceWidth; colInSlice++) {
+                double thisColNorm = 0;
 
-        calculateSliceNorm(matrixDimension, thisThreadSliceWidth, resultMatrixSlice, oneNorm);
-    }
+                //iterate through rows of the column to sum absolute values
+                for (int row = 0; row < matrixDimension; row++) {
+                    thisColNorm += fabs(resultMatrixSlice[colInSlice * matrixDimension + row]);
+                }
+
+                //if norm of the current column is greater than the current max column norm, update it to the current value
+                if (thisColNorm > sliceNorm) {
+                    sliceNorm = thisColNorm;
+                }
+
+            }
+
+            //if norm of the current column is greater than the current max column norm, update it to the current value
+#pragma omp critical
+            if (sliceNorm > *(oneNorm)) {
+                *(oneNorm) = sliceNorm;
+            }
+        }
+    } //end parallel region
 }
 
 void assertMatricesAreEquivalent(int matrixDimension, const double *serialMulResultMatrix,
