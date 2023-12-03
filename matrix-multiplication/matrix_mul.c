@@ -62,35 +62,33 @@ void parallelMultiply(int numProcesses, int matrixDimension, const double *leftM
         int resultMatrixStartingIndex = threadNumber * elementsInSlice;
         double *rightMatrixSlice = rightMatrix + threadNumber * elementsInSlice;
         int thisThreadSliceWidth = isLastThread(threadNumber, numThreads)
-                                   ? matrixDimension - (sliceWidth * (numThreads-1))
+                                   ? matrixDimension - (sliceWidth * (numThreads - 1))
                                    : sliceWidth;
 
         int currentResultIndex = 0;
 
-        printf("Thread %d has starting index %d and slice width %d\n ", threadNumber, resultMatrixStartingIndex, thisThreadSliceWidth);
-
 #pragma omp for
         //calculate results for each slice
-        for (int rightMatrixCol = 0; rightMatrixCol < matrixDimension; rightMatrixCol+=sliceWidth) {
+        for (int rightMatrixCol = 0; rightMatrixCol < matrixDimension; rightMatrixCol += sliceWidth) {
 
-            //TODO: add loop to iterate through cols in slice width, OR use schedule with for
+            printf("Thread %d of %d beginning execution of loop with slice width %d\n ", threadNumber, numThreads,
+                   thisThreadSliceWidth);
 
-            printf("Thread %d of %d beginning execution of loop with slice width %d\n ", threadNumber, numThreads, thisThreadSliceWidth);
+            for (int colInSlice = 0; colInSlice < thisThreadSliceWidth; colInSlice++) {
 
-            for (int leftMatrixRow = 0; leftMatrixRow < matrixDimension; leftMatrixRow++) {
+                for (int leftMatrixRow = 0; leftMatrixRow < matrixDimension; leftMatrixRow++) {
 
-                //calculate value for a single element of the result matrix by multiplying the single row and single column
-                double element = 0;
-                for (int k = 0; k < matrixDimension; k++) {
-                    element += leftMatrix[leftMatrixRow + k * matrixDimension] *
-                               rightMatrixSlice[k + matrixDimension * rightMatrixCol];
+                    //calculate value for a single element of the result matrix by multiplying the single row and single column
+                    double element = 0;
+                    for (int k = 0; k < matrixDimension; k++) {
+                        element += leftMatrix[leftMatrixRow + k * matrixDimension] *
+                                   rightMatrixSlice[k + matrixDimension * colInSlice];
+                    }
+
+                    parallelResultMatrix[resultMatrixStartingIndex + currentResultIndex] = element;
+
+                    currentResultIndex++;
                 }
-
-                printf("Thread %d attempting to update result matrix index %d\n", threadNumber, resultMatrixStartingIndex + currentResultIndex);
-
-                //parallelResultMatrix[resultMatrixStartingIndex + currentResultIndex] = element;
-
-                currentResultIndex++;
             }
         }
     } //end parallel region
@@ -188,20 +186,20 @@ int main(void) {
     printf("Enter matrix dimension n : \n\n");
     scanf("%d", &matrixDimension);
 
-//    printf("Enter number of working processes p: \n\n");
+//    printf("Enter number of working threads p: \n\n");
 //    if (scanf("%d", &numThreads) < 1 || numThreads > maxThreads) {
-//        printf("Invalid number of processes %d specified", numThreads);
+//        printf("Invalid number of threads %d specified", numThreads);
 //        exit(-1);
 //    }
 //
 //    if (numThreads > matrixDimension) {
-//        printf("Number of processes p: %d should be smaller than matrix dimension n: %d\n\n",
+//        printf("Number of threads p: %d should be smaller than matrix dimension n: %d\n\n",
 //               matrixDimension, numThreads);
 //        exit(-1);
 //    }
 //
 //    if (0 != matrixDimension % numThreads) {
-//        printf("Matrix with dimension n: %d and number of processes p: %d will be partitioned into uneven slices\n\n",
+//        printf("Matrix with dimension n: %d and number of threads p: %d will be partitioned into uneven slices\n\n",
 //               matrixDimension, numThreads);
 //    }
 //

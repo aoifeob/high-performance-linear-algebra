@@ -32,48 +32,68 @@ void serialMultiply(int matrixDimension, const double *leftMatrix, const double 
     }
 }
 
-void *multiplySlice(int sliceWidth, int matrixDimension, int resultMatrixSliceStartingIndex, const double *leftMatrix,
-                    const double *rightMatrixSlice, double *parallelResultMatrix) {
-    int currentResultIndex = 0;
-
-    for (int rightMatrixCol = 0; rightMatrixCol < sliceWidth; rightMatrixCol++) {
-        for (int leftMatrixRow = 0; leftMatrixRow < matrixDimension; leftMatrixRow++) {
-
-            //calculate value for a single element of the result matrix by multiplying the single row and single column
-            double element = 0;
-            for (int k = 0; k < matrixDimension; k++) {
-                element += leftMatrix[leftMatrixRow + k * matrixDimension] *
-                           rightMatrixSlice[k + matrixDimension * rightMatrixCol];
-            }
-            parallelResultMatrix[resultMatrixSliceStartingIndex + currentResultIndex] = element;
-
-            currentResultIndex++;
-        }
-    }
-
-}
-
-void parallelMultiply(int numProcesses, int matrixDimension, double *leftMatrix, double *rightMatrix,
+void parallelMultiply(int numProcesses, int matrixDimension, const double *leftMatrix, double *rightMatrix,
                       double *parallelResultMatrix) {
     int threadNumber;
     int sliceWidth = matrixDimension / numProcesses;
     int elementsInSlice = matrixDimension * sliceWidth;
 
-    //create threads
-#pragma omp parallel shared (leftMatrix, rightMatrix, parallelResultMatrix) private (threadNumber)
+    //create parallel region
+#pragma omp parallel shared (sliceWidth, elementsInSlice) private (threadNumber)
     {
-        //construct thread data
+        int numThreads = omp_get_num_threads();
         threadNumber = omp_get_thread_num();
-        double *rightMatrixSlice = rightMatrix + threadNumber * elementsInSlice;
-        int thisThreadSliceWidth = isLastThread(threadNumber, numProcesses)
-                                   ? matrixDimension - (sliceWidth * (numProcesses - 1))
-                                   : sliceWidth;
-        int resultMatrixSliceStartingIndex = threadNumber * matrixDimension * sliceWidth;
 
-        //calculate slice
-        multiplySlice(thisThreadSliceWidth, matrixDimension, resultMatrixSliceStartingIndex,
-                      leftMatrix, rightMatrixSlice, parallelResultMatrix);
-    } //end parallel
+        int resultMatrixStartingIndex = threadNumber * elementsInSlice;
+        double *rightMatrixSlice = rightMatrix + threadNumber * elementsInSlice;
+        int thisThreadSliceWidth = isLastThread(threadNumber, numThreads)
+                                   ? matrixDimension - (sliceWidth * (numThreads - 1))
+                                   : sliceWidth;
+
+        int currentResultIndex = 0;
+
+        printf("Thread %d has starting index %d and slice width %d\n ", threadNumber, resultMatrixStartingIndex,
+               thisThreadSliceWidth);
+
+#pragma omp for
+        //calculate results for each slice
+        for (int rightMatrixCol = 0; rightMatrixCol < matrixDimension; rightMatrixCol += sliceWidth) {
+
+            for (int colInSlice = 0; colInSlice < thisThreadSliceWidth; colInSlice++) {
+
+                printf("Thread %d of %d beginning execution of loop with slice width %d\n ", threadNumber, numThreads,
+                       thisThreadSliceWidth);
+
+                for (int leftMatrixRow = 0; leftMatrixRow < matrixDimension; leftMatrixRow++) {
+
+                    //calculate value for a single element of the result matrix by multiplying the single row and single column
+                    double element = 0;
+                    for (int k = 0; k < matrixDimension; k++) {
+                        element += leftMatrix[leftMatrixRow + k * matrixDimension] *
+                                   rightMatrixSlice[k + matrixDimension * colInSlice];
+                        printf("Thread %d "
+                               "calculating result index %d "
+                               "by summing product %f of\n "
+                               "Left matrix index %d"
+                               ": %f\n "
+                               "Right matrix index %d"
+                               ": %f\n\n",
+                               threadNumber,
+                               resultMatrixStartingIndex + currentResultIndex,
+                               leftMatrix[leftMatrixRow + k * matrixDimension] * rightMatrixSlice[k + matrixDimension * rightMatrixCol],
+                               leftMatrixRow + k * matrixDimension,
+                               leftMatrix[leftMatrixRow + k * matrixDimension],
+                               k + matrixDimension * colInSlice,
+                               rightMatrixSlice[k + matrixDimension * colInSlice]);
+                    }
+
+                    parallelResultMatrix[resultMatrixStartingIndex + currentResultIndex] = element;
+
+                    currentResultIndex++;
+                }
+            }
+        }
+    } //end parallel region
 
 }
 
@@ -136,7 +156,7 @@ int main(void) {
 
     unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
 
-    parallelMulResultMatrix = (double *)malloc(matrixMemorySize);
+    parallelMulResultMatrix = (double *) malloc(matrixMemorySize);
 
     if (!parallelMulResultMatrix) {
         printf("Insufficient memory for matrices of dimension %d.\n", matrixDimension);
