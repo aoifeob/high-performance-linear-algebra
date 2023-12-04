@@ -180,22 +180,23 @@ int main(void) {
     printf("Enter matrix dimension n : \n\n");
     scanf("%d", &matrixDimension);
 
-//    printf("Enter number of working threads p: \n\n");
-//    if (scanf("%d", &numThreads) < 1 || numThreads > maxThreads) {
-//        printf("Invalid number of threads %d specified", numThreads);
-//        exit(-1);
-//    }
-//
-//    if (numThreads > matrixDimension) {
-//        printf("Number of threads p: %d should be smaller than matrix dimension n: %d\n\n",
-//               matrixDimension, numThreads);
-//        exit(-1);
-//    }
-//
-//    if (0 != matrixDimension % numThreads) {
-//        printf("Matrix with dimension n: %d and number of threads p: %d will be partitioned into uneven slices\n\n",
-//               matrixDimension, numThreads);
-//    }
+    printf("Enter number of working threads p: \n\n");
+    if (scanf("%d", &numThreads) < 1 || numThreads > maxThreads) {
+        printf("Invalid number of threads %d specified", numThreads);
+        exit(-1);
+    }
+
+    if (numThreads > matrixDimension) {
+        printf("Number of threads p: %d should be smaller than matrix dimension n: %d\n\n",
+               matrixDimension, numThreads);
+        exit(-1);
+    }
+
+    if (0 != matrixDimension % numThreads) {
+        printf("Number of threads p: %d should evenly divide matrix dimension n: %d\n\n",
+               matrixDimension, numThreads);
+        exit(-1);
+    }
 
     omp_set_num_threads(numThreads);
 
