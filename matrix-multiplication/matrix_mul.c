@@ -103,10 +103,11 @@ void calculateParallelNorm(int numProcesses, int matrixDimension, double *parall
         threadNumber = omp_get_thread_num();
 
         //construct thread data
-        double *resultMatrixSlice = parallelMulResultMatrix + threadNumber * elementsInSlice;
         int thisThreadSliceWidth = isLastThread(threadNumber, numProcesses)
                                    ? matrixDimension - (sliceWidth * (numProcesses - 1))
                                    : sliceWidth;
+        double *resultMatrixSlice = parallelMulResultMatrix + threadNumber * matrixDimension * thisThreadSliceWidth;
+
 #pragma omp for
         //iterate through columns of the slice
         for (int resultMatrixCols = 0; resultMatrixCols < matrixDimension; resultMatrixCols += sliceWidth) {
@@ -195,10 +196,8 @@ int main(void) {
 //        printf("Matrix with dimension n: %d and number of threads p: %d will be partitioned into uneven slices\n\n",
 //               matrixDimension, numThreads);
 //    }
-//
-//    omp_set_num_threads(numThreads);
 
-    omp_set_num_threads(maxThreads);
+    omp_set_num_threads(numThreads);
 
     unsigned long matrixMemorySize = matrixDimension * matrixDimension * sizeof(double);
 
