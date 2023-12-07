@@ -39,17 +39,6 @@ int main(int argc, char **argv) {
     if(myrank==0)
         printf("It took %f seconds to multiply 2 %dx%d matrices.\n",
                MPI_Wtime()-start, n, n);
-    if(myrank==0)
-        allC = malloc(n*n*sizeof(double));
-    MPI_Gather(c, myn*n, MPI_DOUBLE, allC, myn*n, MPI_DOUBLE,
-               0, MPI_COMM_WORLD);
-    if(myrank==0) {
-        for(i=0, sumdiag=0.; i<n; i++)
-            sumdiag += allC[i*n+i];
-        printf("The trace of the resulting matrix is %f\n", sumdiag);
-    }
-    if(myrank==0)
-        free(allC);
     MPI_Finalize();
     free(a);
     free(b);
