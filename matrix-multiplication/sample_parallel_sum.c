@@ -6,7 +6,7 @@
 int n, p;
 int main(int argc, char **argv) {
     int myn, myrank;
-    double *a, *b, *c, *allB, start, sum, *allC, sumdiag;
+    double *a, *b, *c, *allB, start, sum, sumdiag;
     int i, j, k;
     n = atoi(argv[1]);
     MPI_Init(&argc, &argv);
