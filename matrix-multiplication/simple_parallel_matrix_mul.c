@@ -16,10 +16,10 @@ void printMatrix(int dim, double matrix[]) {
     printf("\n");
 }
 
-void printSlice(int rows, int cols, int dim, double matrix[]) {
+void printSlice(int procRank, int rows, int cols, int dim, double matrix[]) {
     for (int col = 0; col < cols; col++) {
         for (int row = 0; row < rows; row++) {
-            printf("Slice col: %d, row: %d has value %f\n", col, row, matrix[col * dim + row]);
+            printf("Proc rank: %d slice col: %d, row: %d has value %f\n", procRank, col, row, matrix[col * dim + row]);
         }
         printf("\n");
     }
@@ -73,8 +73,8 @@ int main(int argc, char **argv) {
     }
 
     //determine where the squares the process is responsible for are located in the whole matrix
-    int thisProcCol = (int) floor((thisProcRank / squareSize));
-    int thisProcRow = thisProcRank % squareSize;
+    int thisProcCol = (int) floor(((double)thisProcRank / rootP));
+    int thisProcRow = thisProcRank % rootP;
     int fullMatrixStartingIndex = thisProcRow * squareSize + (matrixDimension * squareSize * thisProcCol);
 
     // populate values of left/right subMatrices for process
@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
                   colComm);
 
     printf("Process %d finished gathering cols\n", thisProcRank);
-    printSlice(squareSize, matrixDimension, matrixDimension, rightCols);
+    printSlice(thisProcRank, squareSize, matrixDimension, matrixDimension, rightCols);
 
     MPI_Allgather(leftSubMatrix,
                   squareSize * squareSize,
@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
                   rowComm);
 
     printf("Process %d finished gathering rows\n", thisProcRank);
-    printSlice(matrixDimension, squareSize, matrixDimension, rightCols);
+    printSlice(thisProcRank, matrixDimension, squareSize, matrixDimension, rightCols);
 
     // calculate result sub matrix values
     for (int col = 0; col < squareSize; col++) {
