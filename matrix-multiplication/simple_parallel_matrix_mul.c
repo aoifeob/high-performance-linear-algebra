@@ -78,16 +78,14 @@ int main(int argc, char **argv) {
     int fullMatrixStartingIndex = thisProcRow * squareSize + (matrixDimension * squareSize * thisProcCol);
 
     // populate values of left/right subMatrices for process
-    int subMatrixIndex = 0;
-    for (int col = fullMatrixStartingIndex; col < fullMatrixStartingIndex + squareSize; col++) {
-        for (int row = fullMatrixStartingIndex; row < fullMatrixStartingIndex + squareSize; row++) {
-            leftSubMatrix[subMatrixIndex] = leftMatrix[fullMatrixStartingIndex + (matrixDimension * col) + row];
-            rightSubMatrix[subMatrixIndex] = rightMatrix[fullMatrixStartingIndex + (matrixDimension * col) + row];
-            subMatrixIndex++;
+    for (int col = 0; col < squareSize; col++) {
+        for (int row = 0; row < squareSize; row++) {
+            leftSubMatrix[col * squareSize + row] = leftMatrix[fullMatrixStartingIndex + (matrixDimension * col) + row];
+            rightSubMatrix[col * squareSize + row] = rightMatrix[fullMatrixStartingIndex + (matrixDimension * col) + row];
         }
     }
 
-    printSlice(thisProcRank, squareSize, squareSize, squareSize, leftSubMatrix);
+    //printSlice(thisProcRank, squareSize, squareSize, squareSize, leftSubMatrix);
     //printSlice(thisProcRank, squareSize, squareSize, squareSize, rightSubMatrix);
 
     // synchronise to ensure all processes know their squares
@@ -113,7 +111,7 @@ int main(int argc, char **argv) {
                   colComm);
 
     //printf("Process %d finished gathering cols\n", thisProcRank);
-    //printSlice(thisProcRank, squareSize, matrixDimension, matrixDimension, rightCols);
+    //printSlice(thisProcRank, matrixDimension, squareSize, squareSize, rightCols);
 
     MPI_Allgather(leftSubMatrix,
                   squareSize * squareSize,
@@ -124,7 +122,7 @@ int main(int argc, char **argv) {
                   rowComm);
 
     //printf("Process %d finished gathering rows\n", thisProcRank);
-    //printSlice(thisProcRank, matrixDimension, squareSize, matrixDimension, leftRows);
+    //printSlice(thisProcRank, squareSize, matrixDimension, squareSize, leftRows);
 
     // calculate result sub matrix values
     for (int col = 0; col < squareSize; col++) {
