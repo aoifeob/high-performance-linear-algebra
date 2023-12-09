@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
     double leftMatrix[4] = {1, 2, 3, 4};
     double rightMatrix[4] = {5, 6, 7, 8};
     int thisProcRank, squareSize, neighboursToReceiveFrom, numElementsToReceive;
-    double *leftSubMatrix, *rightSubMatrix, *resultSubMatrix, *leftRow, *rightCol, *parallelResultMatrix, parallelMulStartTime, parallelMulTimeElapsed;
+    double *leftSubMatrix, *rightSubMatrix, *resultSubMatrix, *leftRows, *rightCols, *parallelResultMatrix, parallelMulStartTime, parallelMulTimeElapsed;
 
     if (argc < 2) {
         printf("Invalid number of arguments supplied. \n");
@@ -45,13 +45,13 @@ int main(int argc, char **argv) {
     neighboursToReceiveFrom = rootP - 1;
     numElementsToReceive = (matrixDimension * matrixDimension) / p;
 
-    leftSubMatrix = malloc(squareSize * matrixDimension * sizeof(double));
-    rightSubMatrix = malloc(squareSize * matrixDimension * sizeof(double));
-    resultSubMatrix = malloc(squareSize * matrixDimension * sizeof(double));
-    leftRow = malloc(matrixDimension * squareSize * sizeof(double));
-    rightCol = malloc(matrixDimension * squareSize * sizeof(double));
+    leftSubMatrix = malloc(squareSize * squareSize * sizeof(double));
+    rightSubMatrix = malloc(squareSize * squareSize * sizeof(double));
+    resultSubMatrix = malloc(squareSize * squareSize * sizeof(double));
+    leftRows = malloc(matrixDimension * squareSize * sizeof(double));
+    rightCols = malloc(matrixDimension * squareSize * sizeof(double));
 
-    if (!leftSubMatrix || !rightSubMatrix || !resultSubMatrix || !leftRow || !rightCol) {
+    if (!leftSubMatrix || !rightSubMatrix || !resultSubMatrix || !leftRows || !rightCols) {
         printf("Insufficient memory for matrices of size: %d", matrixDimension);
         exit(-1);
     }
@@ -88,14 +88,14 @@ int main(int argc, char **argv) {
     MPI_Allgather(leftSubMatrix,
                   squareSize * squareSize,
                   MPI_DOUBLE,
-                  leftRow,
+                  leftRows,
                   squareSize * squareSize,
                   MPI_DOUBLE,
                   rowComm);
     MPI_Allgather(rightSubMatrix,
                   squareSize * squareSize,
                   MPI_DOUBLE,
-                  rightCol,
+                  rightCols,
                   squareSize * squareSize,
                   MPI_DOUBLE,
                   colComm);
@@ -105,14 +105,14 @@ int main(int argc, char **argv) {
         for (int row = 0; row < squareSize; row++) {
             double element = 0;
             for (int k = 0; k < squareSize; k++) {
-                element += leftRow[row + k * squareSize] * rightCol[k + squareSize * col];
+                element += leftRows[row + k * squareSize] * rightCols[k + squareSize * col];
             }
             resultSubMatrix[col * squareSize + row] = element;
         }
     }
 
-    free(leftRow);
-    free(rightCol);
+    free(leftRows);
+    free(rightCols);
 
     //synchronise to ensure all processors have finished calculating their result submatrix
     MPI_Barrier(MPI_COMM_WORLD);
@@ -132,12 +132,14 @@ int main(int argc, char **argv) {
                0,
                MPI_COMM_WORLD);
 
-    printf("Time taken for parallel matrix multiplication on array with %dx%d dimensions: %f\n\n",
-           matrixDimension, matrixDimension, parallelMulTimeElapsed);
+    //synchronise to ensure all processors have finished sending their result sub matrices
+    MPI_Barrier(MPI_COMM_WORLD);
 
     MPI_Finalize();
 
     if (thisProcRank == 0) {
+        printf("Time taken for parallel matrix multiplication on array with %dx%d dimensions: %f\n\n",
+               matrixDimension, matrixDimension, parallelMulTimeElapsed);
         free(parallelResultMatrix);
     }
     free(leftSubMatrix);
