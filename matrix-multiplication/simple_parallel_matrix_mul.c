@@ -6,6 +6,26 @@
 
 int matrixDimension, p;
 
+void printMatrix(int dim, double matrix[]) {
+    for (int col = 0; col < dim; col++) {
+        for (int row = 0; row < dim; row++) {
+            printf("Matrix col: %d, row: %d has value %f\n", col, row, matrix[col * dim + row]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+void printSlice(int rows, int cols, int dim, double matrix[]) {
+    for (int col = 0; col < cols; col++) {
+        for (int row = 0; row < rows; row++) {
+            printf("Slice col: %d, row: %d has value %f\n", col, row, matrix[col * dim + row]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
 int main(int argc, char **argv) {
     double leftMatrix[4] = {1, 2, 3, 4};
     double rightMatrix[4] = {5, 6, 7, 8};
@@ -19,22 +39,18 @@ int main(int argc, char **argv) {
 
     matrixDimension = atoi(argv[1]);
 
-//    p = 16;
-//    matrixDimension = 4;
-//    thisProcRank = 0;
-
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &p);
 
     int rootP = (int) sqrt(p);
 
     if (rootP - sqrt(p) != 0.0) {
-        printf("Invalid number of processors: %d. P must be a square number. \n", p);
+        printf("Invalid number of processes: %d. P must be a square number. \n", p);
         exit(-1);
     }
 
     if (rootP % matrixDimension != 0) {
-        printf("Invalid matrix size: %d for number of processors: %d. Sqrt p must be divisible by n. \n",
+        printf("Invalid matrix size: %d for number of processes: %d. Sqrt p must be divisible by n. \n",
                matrixDimension, p);
         exit(-1);
     }
@@ -56,12 +72,12 @@ int main(int argc, char **argv) {
         exit(-1);
     }
 
-    //determine where the squares the processor is responsible for are located in the whole matrix
+    //determine where the squares the process is responsible for are located in the whole matrix
     int thisProcCol = (int) floor((thisProcRank / squareSize));
     int thisProcRow = thisProcRank % squareSize;
     int fullMatrixStartingIndex = thisProcRow * squareSize + (matrixDimension * squareSize * thisProcCol);
 
-    // populate values of left/right subMatrices for processor
+    // populate values of left/right subMatrices for process
     int resultSubMatrixIndex = 0;
     for (int col = fullMatrixStartingIndex; col < fullMatrixStartingIndex + squareSize; col++) {
         for (int row = fullMatrixStartingIndex; row < fullMatrixStartingIndex + squareSize; row++) {
@@ -71,7 +87,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    // synchronise to ensure all processors know their squares
+    // synchronise to ensure all processes know their squares
     MPI_Barrier(MPI_COMM_WORLD);
 
     // create communicators for communicating rows and cols
@@ -84,14 +100,7 @@ int main(int argc, char **argv) {
         parallelMulStartTime = MPI_Wtime();
     }
 
-    // all processors send required square data to other processors
-    MPI_Allgather(leftSubMatrix,
-                  squareSize * squareSize,
-                  MPI_DOUBLE,
-                  leftRows,
-                  squareSize * squareSize,
-                  MPI_DOUBLE,
-                  rowComm);
+    // all processes send required square data to other processes
     MPI_Allgather(rightSubMatrix,
                   squareSize * squareSize,
                   MPI_DOUBLE,
@@ -99,6 +108,20 @@ int main(int argc, char **argv) {
                   squareSize * squareSize,
                   MPI_DOUBLE,
                   colComm);
+
+    printf("Process %d finished gathering cols\n", thisProcRank);
+    printSlice(squareSize, matrixDimension, matrixDimension, rightCols);
+
+    MPI_Allgather(leftSubMatrix,
+                  squareSize * squareSize,
+                  MPI_DOUBLE,
+                  leftRows,
+                  squareSize * squareSize,
+                  MPI_DOUBLE,
+                  rowComm);
+
+    printf("Process %d finished gathering rows\n", thisProcRank);
+    printSlice(matrixDimension, squareSize, matrixDimension, rightCols);
 
     // calculate result sub matrix values
     for (int col = 0; col < squareSize; col++) {
@@ -114,7 +137,7 @@ int main(int argc, char **argv) {
     free(leftRows);
     free(rightCols);
 
-    //synchronise to ensure all processors have finished calculating their result submatrix
+    //synchronise to ensure all processes have finished calculating their result submatrix
     MPI_Barrier(MPI_COMM_WORLD);
 
     if (thisProcRank == 0) {
@@ -132,7 +155,7 @@ int main(int argc, char **argv) {
                0,
                MPI_COMM_WORLD);
 
-    //synchronise to ensure all processors have finished sending their result sub matrices
+    //synchronise to ensure all processes have finished sending their result sub matrices
     MPI_Barrier(MPI_COMM_WORLD);
 
     MPI_Finalize();
@@ -140,6 +163,7 @@ int main(int argc, char **argv) {
     if (thisProcRank == 0) {
         printf("Time taken for parallel matrix multiplication on array with %dx%d dimensions: %f\n\n",
                matrixDimension, matrixDimension, parallelMulTimeElapsed);
+        printMatrix(matrixDimension, parallelResultMatrix);
         free(parallelResultMatrix);
     }
     free(leftSubMatrix);
