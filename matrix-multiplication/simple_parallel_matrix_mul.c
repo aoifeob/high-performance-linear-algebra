@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
         for (int row = 0; row < squareSize; row++) {
             double element = 0;
             for (int k = 0; k < matrixDimension; k++) {
-                element += leftRows[row + k * squareSize] * rightCols[k + squareSize * col];
+                element += leftRows[row + k * squareSize] * rightCols[k + matrixDimension * col];
             }
             resultSubMatrix[col * squareSize + row] = element;
         }
