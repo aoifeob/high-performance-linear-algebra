@@ -150,11 +150,11 @@ int main(int argc, char **argv) {
     // calculate result sub matrix values
     for (int col = 0; col < squareSize; col++) {
         for (int row = 0; row < squareSize; row++) {
-            double element = 0;
+            double sum = 0;
             for (int k = 0; k < matrixDimension; k++) {
-                element += leftRows[row + k * squareSize] * rightCols[k + matrixDimension * col];
+                sum += leftRows[row + k * squareSize] * rightCols[k + matrixDimension * col];
             }
-            resultSubMatrix[col * squareSize + row] = element;
+            resultSubMatrix[col * squareSize + row] = sum;
         }
     }
 
