@@ -1,40 +1,42 @@
-#include <stdio.h>
-#include <stdlib.h>
-
-typedef struct {
-    int valueToSum;
-    int *totalSum;
-} sum_data;
-
-void *sum(void *arg) {
-    sum_data *sum_data = arg;
-
-    *(sum_data->totalSum) += sum_data->valueToSum;
-}
-
-void parallelSum(int numProcesses, int *totalSum) {
-    sum_data *process_sum_data;
-
-    process_sum_data = malloc(numProcesses * sizeof(sum_data));
-
-    //create processes
-    for (int processes = 0; processes < numProcesses; processes++) {
-        process_sum_data[processes].valueToSum = processes;
-        process_sum_data[processes].totalSum = totalSum;
-
-        //calculate slice
-    }
-
-    free(process_sum_data);
-}
-
-int main(void) {
-    int numProcesses = 8;
-    int sumTotal = 0;
-
-    parallelSum(numProcesses, &sumTotal);
-
-    printf("Total sum is %d \n", sumTotal);
-
-    return 0;
-}
+//#include <stdio.h>
+//#include <stdlib.h>
+//#include <mpi.h>
+//
+//double dot_product(double *x, double *y, int m, MPI_Comm comm) {
+//    double local_dot_prod;
+//    double global_dot_prod; /* result (at process zero) */
+//    int i;
+//    local_dot_prod = 0.;
+//    for(i=0; i<m; i++)
+//        local_dot_prod += x[i]*y[i];
+//    MPI_Reduce(&local_dot_prod,
+//               &global_dot_prod,
+//               1,
+//               MPI_DOUBLE,
+//               MPI_SUM,
+//               0,
+//               comm);
+//    return global_dot_prod;
+//}
+//
+//int main(void) {
+//    int numProcesses = 8;
+//    int sumTotal = 0;
+//    int my_global_rank, my_rank_in_a;
+//    int global_size;
+//
+//    MPI_Init(&argc, &argv);
+//    MPI_Comm_size(MPI_COMM_WORLD, &global_size);
+//    MPI_Comm_rank(MPI_COMM_WORLD, &my_global_rank);
+//
+//    dot_product(numProcesses, &sumTotal);
+//
+//    printf("Total sum is %d \n", sumTotal);
+//
+//    if(MPI_COMM_WORLD != MPI_COMM_NULL)
+//        MPI_Comm_free(MPI_COMM_WORLD);
+//
+//    MPI_Finalize();
+//
+//    return 0;
+//}

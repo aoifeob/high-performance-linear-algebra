@@ -5,19 +5,19 @@
 
 int n, p;
 int main(int argc, char **argv) {
-    int myn, myrank;
-    double *a, *b, *c, *allB, start, sum, sumdiag;
+    int squareSize, myrank;
+    double *a, *b, *c, *allB, start, sum;
     int i, j, k;
     n = atoi(argv[1]);
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD,&p);
     MPI_Comm_rank(MPI_COMM_WORLD,&myrank);
-    myn = n/p;
-    a = malloc(myn*n*sizeof(double));
-    b = malloc(myn*n*sizeof(double));
-    c = malloc(myn*n*sizeof(double));
+    squareSize = n/p;
+    a = malloc(squareSize*n*sizeof(double));
+    b = malloc(squareSize*n*sizeof(double));
+    c = malloc(squareSize*n*sizeof(double));
     allB = malloc(n*n*sizeof(double));
-    for(i=0; i<myn*n; i++) {
+    for(i=0; i<squareSize*n; i++) {
         a[i] = 1.;
         b[i] = 2.;
     }
@@ -25,9 +25,9 @@ int main(int argc, char **argv) {
     if(myrank==0)
         start = MPI_Wtime();
     for(i=0; i<p; i++)
-        MPI_Gather(b, myn*n, MPI_DOUBLE, allB, myn*n, MPI_DOUBLE,
+        MPI_Gather(b, squareSize*n, MPI_DOUBLE, allB, squareSize*n, MPI_DOUBLE,
                    i, MPI_COMM_WORLD);
-    for(i=0; i<myn; i++)
+    for(i=0; i<squareSize; i++)
         for(j=0; j<n; j++) {
             sum = 0.;
             for(k=0; k<n; k++)
